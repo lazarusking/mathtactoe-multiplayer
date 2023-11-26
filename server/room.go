@@ -69,7 +69,7 @@ func (room *Room) RunRoom() {
 				room.notifyFullRoom(client)
 				break
 			}
-			room.notifyClientJoined(client)
+			// room.notifyClientJoined(client)
 			room.clients[client] = true
 			for client := range room.clients {
 				if _, exists := room.clients[client]; exists {

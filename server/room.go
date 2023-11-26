@@ -140,12 +140,12 @@ func (room *Room) updateState() {
 	// }
 	// room.game.Players[message.Sender.ID] = newButtons
 
-	game, _ := json.Marshal(room.game)
+	// game, _ := json.Marshal(room.game)
 	log.Println("Game Updated")
 	log.Println(len(room.game.Players), room.game.CurrentPlayer, len(room.game.Clients))
 	updatedStateMessage := &Message{
 		Action:  UpdateStateAction,
-		Message: string(game),
+		Message: fmt.Sprintf("%v", room.game.CurrentPlayer),
 		Target:  room}
 	for client := range room.clients {
 		updatedStateMessage.Sender = client

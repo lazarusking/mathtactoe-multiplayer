@@ -47,7 +47,7 @@ function handleMessage(event: MessageEvent) {
         </div>
         <div class="items-center justify-between space-y-2 font-medium md:flex md:space-y-0 md:space-x-2">
           <button @click="$router.push(roomId)" class="w-full py-2 text-center text-white bg-blue-700 rounded-md md:w-1/2"
-            type="submit">
+            type="button">
             Join Game
           </button>
           <button @click="createRoom" class="w-full py-2 text-center text-white bg-green-700 rounded-md md:w-1/2"

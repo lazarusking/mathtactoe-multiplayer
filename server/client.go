@@ -140,12 +140,16 @@ func (c *Client) listen() {
 		// c.conn.Close()
 		c.disconnect()
 	}()
-
+	c.conn.SetReadLimit(maxMessageSize)
+	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		_, messageContent, err := c.conn.ReadMessage()
 		if err != nil {
-			log.Println(err)
-			return
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("error: %v", err)
+			}
+			break
 		}
 		messageContent = bytes.TrimSpace(bytes.Replace(messageContent, newline, space, -1))
 		c.handleNewMessage(messageContent)

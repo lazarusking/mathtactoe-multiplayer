@@ -14,7 +14,7 @@ RUN go mod download
 COPY *.go ./
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /server
+RUN go build -o /server
 FROM scratch
 WORKDIR /
 COPY --from=base /server /server

@@ -197,84 +197,88 @@ onUnmounted(() => {
 
 
 
-function handleMessage(event: MessageEvent) {
-    const WSMessage: WSMessage = JSON.parse(event.data)
-    //   const data: WSMessage = event.data
-    switch (WSMessage.action) {
-        case 'start-game': {
-            WSState.data = WSMessage
-            const message = JSON.parse(WSMessage.message)
-            tictacGrid.value = options()
-            console.log(message)
-            WSState.clients = message.clients
-            gameState.players = message.players
-            gameState.currentPlayer = message.currentPlayer
-            gameState.setGameStatus(message.gameStatus)
-            console.log(gameState.players)
-
-            break
-        }
-        case 'update-game': {
-            WSState.data = WSMessage
-            console.log(JSON.parse(WSMessage.message))
-            gameState.currentPlayer = JSON.parse(WSMessage.message).currentPlayer
-            console.log(gameState.players)
-
-            break
-        }
-        case 'send-message': {
-            WSState.data = WSMessage
-            break
-        }
-        case 'send-game': {
-            WSState.data = WSMessage
-            console.log(WSMessage);
-
-            tictacGrid.value = JSON.parse(WSMessage.message)
-            // send(message)
-            if (WSState.clientID === WSMessage.sender.id) {
-                console.log("You sent");
-
-            } else {
-                console.log("Opponent sent");
-            }
-            break
-        }
-        case 'join-room':
-            WSState.data = WSMessage
-            WSState.clientID = WSMessage.sender.id
-            //   if (route.params.room != data.message) {
-            //     console.log(route)
-            //     console.log(data.message)
-            //   }
-            break
-        case 'game-status': {
-            WSState.data = WSMessage
-            const message: { gameOver: boolean, gameWon: boolean, gameDraw: boolean } = JSON.parse(WSMessage.message)
-            if (message.gameDraw) {
-                gameState.gameStatus.gameDraw = true
-                gameState.gameStatus.gameOver = message.gameOver
+function handleMessage(event: MessageEvent<string>) {
+    const data = event.data.split(/\r?\n/)
+    console.log(data);
+    for (let i = 0; i < data.length; i++) {
+        const WSMessage: WSMessage = JSON.parse(data[i])
+        switch (WSMessage.action) {
+            case 'start-game': {
+                const message = JSON.parse(WSMessage.message)
+                WSState.data = WSMessage
+                tictacGrid.value = options()
+                console.log(message)
+                WSState.clients = message.clients
+                gameState.players = message.players
+                gameState.currentPlayer = message.currentPlayer
+                gameState.setGameStatus(message.gameStatus)
+                console.log(gameState.players)
                 break
             }
-            if (WSState.clientID === WSMessage.sender.id) {
-                gameState.gameStatus.gameOver = message.gameOver
-                gameState.gameStatus.gameWon = message.gameWon
-                console.log("Juxtapose");
+            case 'update-game': {
+                WSState.data = WSMessage
+                const message = JSON.parse(WSMessage.message)
+                gameState.currentPlayer = message.currentPlayer
+                console.log(JSON.parse(WSMessage.message))
+                console.log(gameState.players)
 
-            } else {
-                gameState.gameStatus.gameWon = false
-                gameState.gameStatus.gameOver = true
-                console.log("Reverse side");
-
+                break
             }
-            console.log(WSMessage.sender);
-            break
+            case 'send-message': {
+                // WSState.data = WSMessage
+                break
+            }
+            case 'send-game': {
+                // WSState.data = WSMessage
+                const message = JSON.parse(WSMessage.message)
+                console.log(WSMessage);
+                tictacGrid.value = message
+                // send(message)
+                // if (WSState.clientID === WSMessage.sender.id) {
+                //     console.log("You sent");
+
+                // } else {
+                //     console.log("Opponent sent");
+                // }
+                break
+            }
+            case 'join-room':
+                WSState.data = WSMessage
+                WSState.clientID = WSMessage.sender.id
+                //   if (route.params.room != data.message) {
+                //     console.log(route)
+                //     console.log(data.message)
+                //   }
+                break
+            case 'game-status': {
+                WSState.data = WSMessage
+                const message: { gameOver: boolean, gameWon: boolean, gameDraw: boolean } = JSON.parse(WSMessage.message)
+                if (message.gameDraw) {
+                    gameState.gameStatus.gameDraw = true
+                    gameState.gameStatus.gameOver = message.gameOver
+                    break
+                }
+                if (WSState.clientID === WSMessage.sender.id) {
+                    gameState.gameStatus.gameOver = message.gameOver
+                    gameState.gameStatus.gameWon = message.gameWon
+                    console.log("Juxtapose");
+
+                } else {
+                    gameState.gameStatus.gameWon = false
+                    gameState.gameStatus.gameOver = true
+                    console.log("Reverse side");
+
+                }
+                console.log(WSMessage.sender);
+                break
+            }
+            default:
+                // console.log(JSON.parse(WSMessage.message))
+                WSState.clients = JSON.parse(WSMessage.message).clients
+                gameState.players = JSON.parse(WSMessage.message).players
+                break
         }
-        default:
-            console.log(JSON.parse(WSMessage.message))
-            WSState.clients = JSON.parse(WSMessage.message).clients
-            gameState.players = JSON.parse(WSMessage.message).players
-            break
+
     }
 }
 

@@ -9,7 +9,8 @@ console.log(import.meta.env)
 if (import.meta.env.MODE === 'development') {
   serverUrl = `${scheme}://${location.hostname}:8080`
 } else {
-  serverUrl = `wss://mathtactoe-multiplayer.onrender.com`
+  // serverUrl = `wss://mathtactoe-multiplayer.onrender.com`
+  serverUrl = `wss://mathtactoe-multiplayer-production.up.railway.app/`
 }
 export const websocket = new WebSocket(serverUrl)
 // export const websocket = new WebSocket('ws://localhost:8080/')

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.21
+FROM golang:1.21-alpine as base
 
 # Set destination for COPY
 WORKDIR /app
@@ -15,7 +15,9 @@ COPY *.go ./
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux go build -o /server
-
+FROM scratch
+WORKDIR /
+COPY --from=base /server /server
 # Optional:
 # To bind to a TCP port, runtime parameters must be supplied to the docker command.
 # But we can document in the Dockerfile what ports
@@ -24,4 +26,4 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /server
 EXPOSE 8080
 
 # Run
-CMD ["/server"]
+ENTRYPOINT ["/server"]

@@ -74,7 +74,7 @@ func (room *Room) RunRoom() {
 			for client := range room.clients {
 				if _, exists := room.clients[client]; exists {
 					a := room.game.Options[room.game.CurrentPlayer]
-					// log.Println("current Player:", room.game.CurrentPlayer)
+					log.Println("current Player:", room.game.CurrentPlayer)
 					room.game.Players[client.ID] = a
 					room.game.Clients = append(room.game.Clients, client)
 					room.game.switchPlayer()

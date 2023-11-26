@@ -4,8 +4,13 @@ const location = document.location
 if (location.protocol === 'https:') {
   scheme += 's'
 }
-
-const serverUrl = `${scheme}://${location.hostname}:8080`
+let serverUrl
+console.log(import.meta.env)
+if (import.meta.env.MODE === 'development') {
+  serverUrl = `${scheme}://${location.hostname}:8080`
+} else {
+  serverUrl = `wss://mathtactoe-multiplayer.onrender.com`
+}
 export const websocket = new WebSocket(serverUrl)
 // export const websocket = new WebSocket('ws://localhost:8080/')
 // function closeWebsocket() {

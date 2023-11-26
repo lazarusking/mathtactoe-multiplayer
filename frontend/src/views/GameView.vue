@@ -198,12 +198,12 @@ onUnmounted(() => {
 
 
 function handleMessage(event: MessageEvent) {
-    const data: WSMessage = JSON.parse(event.data)
+    const WSMessage: WSMessage = JSON.parse(event.data)
     //   const data: WSMessage = event.data
-    switch (data.action) {
+    switch (WSMessage.action) {
         case 'start-game': {
-            WSState.data = data
-            const message = JSON.parse(data.message)
+            WSState.data = WSMessage
+            const message = JSON.parse(WSMessage.message)
             tictacGrid.value = options()
             console.log(message)
             WSState.clients = message.clients
@@ -215,22 +215,24 @@ function handleMessage(event: MessageEvent) {
             break
         }
         case 'update-game': {
-            WSState.data = data
-            console.log(JSON.parse(data.message))
-            gameState.currentPlayer = JSON.parse(data.message).currentPlayer
+            WSState.data = WSMessage
+            console.log(JSON.parse(WSMessage.message))
+            gameState.currentPlayer = JSON.parse(WSMessage.message).currentPlayer
             console.log(gameState.players)
 
             break
         }
         case 'send-message': {
-            WSState.data = data
+            WSState.data = WSMessage
             break
         }
         case 'send-game': {
-            WSState.data = data
-            tictacGrid.value = JSON.parse(data.message)
+            WSState.data = WSMessage
+            console.log(WSMessage);
+
+            tictacGrid.value = JSON.parse(WSMessage.message)
             // send(message)
-            if (WSState.clientID === data.sender.id) {
+            if (WSState.clientID === WSMessage.sender.id) {
                 console.log("You sent");
 
             } else {
@@ -239,22 +241,22 @@ function handleMessage(event: MessageEvent) {
             break
         }
         case 'join-room':
-            WSState.data = data
-            WSState.clientID = data.sender.id
+            WSState.data = WSMessage
+            WSState.clientID = WSMessage.sender.id
             //   if (route.params.room != data.message) {
             //     console.log(route)
             //     console.log(data.message)
             //   }
             break
         case 'game-status': {
-            WSState.data = data
-            const message: { gameOver: boolean, gameWon: boolean, gameDraw: boolean } = JSON.parse(data.message)
+            WSState.data = WSMessage
+            const message: { gameOver: boolean, gameWon: boolean, gameDraw: boolean } = JSON.parse(WSMessage.message)
             if (message.gameDraw) {
                 gameState.gameStatus.gameDraw = true
                 gameState.gameStatus.gameOver = message.gameOver
                 break
             }
-            if (WSState.clientID === data.sender.id) {
+            if (WSState.clientID === WSMessage.sender.id) {
                 gameState.gameStatus.gameOver = message.gameOver
                 gameState.gameStatus.gameWon = message.gameWon
                 console.log("Juxtapose");
@@ -265,13 +267,13 @@ function handleMessage(event: MessageEvent) {
                 console.log("Reverse side");
 
             }
-            console.log(data.sender);
+            console.log(WSMessage.sender);
             break
         }
         default:
-            console.log(JSON.parse(data.message))
-            WSState.clients = JSON.parse(data.message).clients
-            gameState.players = JSON.parse(data.message).players
+            console.log(JSON.parse(WSMessage.message))
+            WSState.clients = JSON.parse(WSMessage.message).clients
+            gameState.players = JSON.parse(WSMessage.message).players
             break
     }
 }

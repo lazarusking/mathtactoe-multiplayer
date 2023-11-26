@@ -1,11 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"log"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+)
+
+var (
+	newline = []byte{'\n'}
+	space   = []byte{' '}
 )
 
 // Client represents a connected WebSocket client.
@@ -126,6 +132,7 @@ func (c *Client) listen() {
 			log.Println(err)
 			return
 		}
+		messageContent = bytes.TrimSpace(bytes.Replace(messageContent, newline, space, -1))
 		c.handleNewMessage(messageContent)
 	}
 }

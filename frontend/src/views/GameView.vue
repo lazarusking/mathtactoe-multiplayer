@@ -67,10 +67,17 @@ const gameState = reactive({
         }
     },
     placeNumber(button: Detail) {
+        if (WSState.data.action === 'start-game') {
+            console.log(button.number, gameState.selectedGrid);
+            if (gameState.selectedGrid.id === 5 && button.number.toString() === '5') {
+                gameState.setToast("Can't start with 5 at this position😏")
+                return
+            }
+        }
         if (this.isSelecting && isCurrentPlayer()) {
             tictacGrid.value = tictacGrid.value.map((grid) => {
                 if (grid.id == this.selectedGrid.id && grid.number === '-') {
-                    return { ...grid, number: button.number }
+                    return { ...grid, number: button.number.toString() }
                 }
                 return grid
             })
@@ -95,6 +102,13 @@ const gameState = reactive({
     },
     setGameStatus(gameStatus: { gameWon: boolean; gameOver: boolean; gameDraw: boolean }) {
         gameState.gameStatus = gameStatus
+    },
+    toastMsg: "",
+    setToast(msg: string) {
+        this.toastMsg = msg
+        setTimeout(() => {
+            this.toastMsg = ''
+        }, 1000);
     }
 })
 const clients = computed(() => (Object.keys(gameState.players)))
@@ -144,42 +158,6 @@ const WSState = reactive({
 //         }
 //     }
 // }
-const selectGrid = (grid: Detail) => {
-    if (grid.number === '-') {
-        gameState.isSelecting = true
-        gameState.selectedGrid = grid
-        console.log(grid)
-    }
-}
-const placeNumber = (button: Detail) => {
-    if (gameState.isSelecting && isCurrentPlayer()) {
-        tictacGrid.value = tictacGrid.value.map((grid) => {
-            if (grid.id == gameState.selectedGrid.id && grid.number === '-') {
-                // console.log('Well hello', grid, button);
-                // console.log({ ...grid, number: button.number });
-                return { ...grid, number: button.number.toString() }
-            }
-            return grid
-        })
-        // gameState.playerOne = gameState.playerOne.filter((item) => button.id !== item.id)
-        gameState.players[WSState.clientID] = gameState.players[WSState.clientID].filter(
-            (item) => button.id !== item.id
-        )
-        console.log(gameState.players[WSState.clientID])
-        // console.log(tictacGrid);
-        gameState.isSelecting = false
-        gameState.selectedGrid = { id: 0, number: '-' }
-        // const state = { tictac: tictacGrid.value, button: { ...button, number: button.number.toString() } }
-        const message = JSON.stringify({
-            action: 'send-game',
-            message: JSON.stringify(tictacGrid.value),
-            target: (WSState.data as WSMessage).target
-        } as WSMessage)
-        // websocket.send(message)
-        send(message)
-    }
-}
-
 
 watchEffect(() => {
     if (route.params.room) {
@@ -218,8 +196,9 @@ function handleMessage(event: MessageEvent<string>) {
             case 'update-game': {
                 WSState.data = WSMessage
                 const message = JSON.parse(WSMessage.message)
-                gameState.currentPlayer = message.currentPlayer
-                console.log(JSON.parse(WSMessage.message))
+                // gameState.currentPlayer = message.currentPlayer
+                gameState.currentPlayer = message
+                console.log(message)
                 console.log(gameState.players)
 
                 break
@@ -325,6 +304,15 @@ const playerName = computed(() => {
         </div>
 
     </div>
+    <Transition>
+        <div v-if="gameState.toastMsg"
+            class="transition ease-in-out fixed inset-0 z-10 flex items-center justify-center text-gray-500 bg-opacity-50">
+            <div
+                class="flex px-4 py-2 mx-auto text-white bg-rose-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1  max-w-md space-y-2 text-center sm:px-6 lg:px-8">
+                {{ gameState.toastMsg }}
+            </div>
+        </div>
+    </Transition>
     <main :class="{ 'blur': clients.length < 2 }"
         class="container flex flex-col items-center justify-center h-screen px-4 py-12 mx-auto">
         <h2 v-if="clients.length >= 2" class="px-4 py-2 mb-4 text-2xl font-bold text-center text-white"
@@ -334,7 +322,7 @@ const playerName = computed(() => {
         <!-- <button @click="randPlay">Play</button> -->
 
         <section class="grid w-full max-w-md grid-cols-3 grid-rows-3 gap-4 shadow-md h-3/5" :class="isPlayingClasses">
-            <button @click="selectGrid(y)" type="button"
+            <button @click="gameState.selectGrid(y)" type="button"
                 :class="{ 'ring ring-offset-2 ring-offset-slate-800 ring-blue-700': gameState.selectedGrid.id === y.id }"
                 :disabled="gameState.isSelecting"
                 class="grid items-center justify-center w-auto h-auto p-8 text-4xl font-black text-white transition-colors bg-gray-600 rounded-lg shadow-md place-content-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none hover:bg-slate-700"
@@ -344,8 +332,8 @@ const playerName = computed(() => {
         </section>
         <section aria-label="buttons"
             class="w-full max-w-md h-1/4 grid grid-flow-col grid-cols-[repeat(auto-fit,_minmax(0,_1fr))] gap-2 font-black text-3xl shadow-md rounded-sm p-2 m-1">
-            <button @click="placeNumber(i)" :value="i.id" v-for="i in gameState.players[WSState.clientID]" :key="i.id"
-                type="button"
+            <button @click="gameState.placeNumber(i)" :value="i.id" v-for="i in gameState.players[WSState.clientID]"
+                :key="i.id" type="button"
                 class="inline-flex items-center justify-center w-full h-auto max-w-md p-2 mt-8 text-2xl font-bold text-white bg-gray-700 rounded-md md:h-10 hover:bg-slate-800 md:p-10">
                 {{ i.number }}
             </button>
@@ -353,3 +341,10 @@ const playerName = computed(() => {
         <GameWinModal :game-status="gameState.gameStatus" @play-again="playAgain" />
     </main>
 </template>
+
+<style scoped>
+.v-enter-from,
+.v-leave-to {
+    opacity: .2;
+}
+</style>

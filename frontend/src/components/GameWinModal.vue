@@ -1,14 +1,13 @@
 <script setup lang="ts">
 defineProps<{ gameStatus: { gameWon: boolean; gameOver: boolean, gameDraw: boolean } }>()
 defineEmits<{ (event: 'play-again'): void }>()
-// defineEmits(['try-again'])
 
 </script>
 <template>
   <template v-if="gameStatus.gameOver">
     <div v-if="gameStatus.gameDraw" aria-modal="true"
       class="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50" role="dialog">
-      <div class="bg-white rounded-lg dark:bg-gray-800 w-full max-w-md mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div class="rounded-lg bg-gray-800 w-full max-w-md mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-center dark:text-white mb-4">No one wins!</h2>
         <p class="text-center text-gray-700 dark:text-gray-200 mb-6">
           You both tied this game

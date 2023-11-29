@@ -1,6 +1,6 @@
-import GameModalVue from '@/components/GameModal.vue'
-import { createRouter, createWebHistory } from 'vue-router'
+import HomepageVue from '@/components/Homepage.vue'
 import GameViewVue from '@/views/GameView.vue'
+import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -8,7 +8,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'game',
-      component: GameModalVue
+      component: HomepageVue
     },
     {
       path: '/:room',

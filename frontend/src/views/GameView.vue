@@ -64,6 +64,11 @@ const gameState = reactive({
             this.isSelecting = true
             this.selectedGrid = grid
             console.log(grid)
+            return
+        }
+
+        if (grid.number === '-' && this.isSelecting) {
+            this.selectedGrid = grid
         }
     },
     placeNumber(button: Detail) {
@@ -212,13 +217,6 @@ function handleMessage(event: MessageEvent<string>) {
                 const message = JSON.parse(WSMessage.message)
                 console.log(WSMessage);
                 tictacGrid.value = message
-                // send(message)
-                // if (WSState.clientID === WSMessage.sender.id) {
-                //     console.log("You sent");
-
-                // } else {
-                //     console.log("Opponent sent");
-                // }
                 break
             }
             case 'join-room':
@@ -240,12 +238,12 @@ function handleMessage(event: MessageEvent<string>) {
                 if (WSState.clientID === WSMessage.sender.id) {
                     gameState.gameStatus.gameOver = message.gameOver
                     gameState.gameStatus.gameWon = message.gameWon
-                    console.log("Juxtapose");
+                    // console.log("Juxtapose");
 
                 } else {
                     gameState.gameStatus.gameWon = false
                     gameState.gameStatus.gameOver = true
-                    console.log("Reverse side");
+                    // console.log("Reverse side");
 
                 }
                 console.log(WSMessage.sender);
@@ -321,16 +319,16 @@ const playerName = computed(() => {
             }}</h2>
         <!-- <button @click="randPlay">Play</button> -->
 
-        <section class="grid w-full max-w-md grid-cols-3 grid-rows-3 gap-4 shadow-md h-3/5" :class="isPlayingClasses">
-            <button @click="gameState.selectGrid(y)" type="button"
+        <section aria-label="tictac grid buttons" class="grid w-full max-w-md grid-cols-3 grid-rows-3 gap-4 shadow-md h-3/5"
+            :class="isPlayingClasses">
+            <button aria-label="tictac button" @click="gameState.selectGrid(y)" type="button"
                 :class="{ 'ring ring-offset-2 ring-offset-slate-800 ring-blue-700': gameState.selectedGrid.id === y.id }"
-                :disabled="gameState.isSelecting"
                 class="grid items-center justify-center w-auto h-auto p-8 text-4xl font-black text-white transition-colors bg-gray-600 rounded-lg shadow-md place-content-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none hover:bg-slate-700"
                 v-for="y in tictacGrid" :key="y.id" :id="y.id.toString()">
                 {{ y.number }}
             </button>
         </section>
-        <section aria-label="buttons"
+        <section aria-label="game-buttons"
             class="w-full max-w-md h-1/4 grid grid-flow-col grid-cols-[repeat(auto-fit,_minmax(0,_1fr))] gap-2 font-black text-3xl shadow-md rounded-sm p-2 m-1">
             <button @click="gameState.placeNumber(i)" :value="i.id" v-for="i in gameState.players[WSState.clientID]"
                 :key="i.id" type="button"

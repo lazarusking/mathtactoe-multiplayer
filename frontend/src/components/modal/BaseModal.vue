@@ -14,8 +14,7 @@ function handleOutsideClick(event: Event) {
 
 const handleCancel = (event: Event) => {
     event.preventDefault();
-    console.log(event);
-
+    // console.log(event);
     if ((event as KeyboardEvent).key === "Escape") {
         emit('close-modal')
     }
@@ -30,9 +29,7 @@ onMounted(() => {
 
 
 onUnmounted(() => {
-    return () => {
-        window?.removeEventListener("keydown", handleCancel);
-    };
+    window?.removeEventListener("keydown", handleCancel);
 })
 </script>
 

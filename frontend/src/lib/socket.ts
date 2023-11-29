@@ -5,7 +5,7 @@ if (location.protocol === 'https:') {
   scheme += 's'
 }
 let serverUrl
-console.log(import.meta.env)
+// console.log(import.meta.env)
 if (import.meta.env.MODE === 'development') {
   serverUrl = `${scheme}://${location.hostname}:8080`
 } else {

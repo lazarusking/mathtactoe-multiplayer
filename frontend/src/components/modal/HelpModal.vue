@@ -5,7 +5,7 @@ defineEmits<{ (event: 'close-modal'): void }>()
 
 </script>
 <template>
-    <BaseModal @close-modal="$emit('close-modal')" :showHelp="showHelp">
+    <BaseModal @close-modal="$emit('close-modal')" :show-help="showHelp">
         <template #title>How to play?</template>
         <template #content>
             <p class="text-sm sm:text-base font-normal leading-normal">

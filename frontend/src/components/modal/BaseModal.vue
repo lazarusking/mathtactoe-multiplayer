@@ -36,7 +36,7 @@ onUnmounted(() => {
 <template>
     <Teleport to="body">
         <!-- <div  class="fixed inset-0 flex items-center justify-center z-50 bg-opacity-50"> -->
-        <div v-show="showHelp" @click="handleOutsideClick" ref="dialog"
+        <div v-if="showHelp" @click="handleOutsideClick" ref="dialog"
             class="fixed inset-0 flex items-center justify-center z-50 overflow-y-auto animate-opacity transition ease-in-out duration-500 bg-gray-500 bg-opacity-75 focus:bg-slate-900">
             <div class="w-auto max-w-md px-4 py-8 mx-auto bg-gray-800 rounded-lg sm:w-80 md:w-full sm:px-6 lg:px-8">
                 <header className="flex font-bold text-center text-lg">

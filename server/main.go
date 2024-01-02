@@ -125,10 +125,11 @@ var playerOne = []Player{
 	{ID: 5, Number: 9},
 }
 var playerTwo = []Player{
-	{ID: 1, Number: 2},
-	{ID: 2, Number: 4},
-	{ID: 3, Number: 6},
-	{ID: 4, Number: 8},
+	{ID: 1, Number: 0},
+	{ID: 2, Number: 2},
+	{ID: 3, Number: 4},
+	{ID: 4, Number: 6},
+	{ID: 5, Number: 8},
 }
 
 type Detail struct {

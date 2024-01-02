@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
 defineProps<{ showHelp: boolean }>()
+defineSlots<{ title: string, content: HTMLElement }>()
 const emit = defineEmits<{ (event: 'close-modal'): void }>()
 
 const dialog = ref(null);

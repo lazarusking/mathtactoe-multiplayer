@@ -65,7 +65,7 @@ func envPortOr(port string) string {
 		return ":" + envPort
 	}
 	// Otherwise, return the value of `port` variable from function argument
-	return "localhost:" + port
+	return ":" + port
 }
 
 type Player struct {

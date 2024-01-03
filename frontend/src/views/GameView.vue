@@ -89,13 +89,15 @@ const gameState = reactive({
             this.players[WSState.clientID] = this.players[WSState.clientID].filter(
                 (item) => button.id !== item.id
             )
-            console.log(this.players[WSState.clientID])
+            console.log(WSState.data)
             this.isSelecting = false
             this.selectedGrid = { id: 0, number: '-' }
             const message = JSON.stringify({
                 action: 'send-game',
                 message: JSON.stringify(tictacGrid.value),
-                target: (WSState.data as WSMessage).target
+                // target: (WSState.data as WSMessage).target
+                target: { ...WSState.data.target, id: route.params.room as string }
+
             } as WSMessage)
             send(message)
         }

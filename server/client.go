@@ -41,10 +41,19 @@ type Client struct {
 }
 
 func (client *Client) handleNewMessage(jsonMessage []byte) {
+	//client started actions
 	var message Message
 	if err := json.Unmarshal(jsonMessage, &message); err != nil {
 		log.Printf("Error on unmarshal message %s", err)
 		return
+	}
+	log.Printf("Handling Message: %v........Client:%s", message.Action, client.ID)
+
+	if message.Sender != nil {
+		client.Name = message.Sender.Name
+		log.Printf("Sender is %s", client.Name)
+	} else {
+		log.Printf("Sender is nil in the received message")
 	}
 	message.Sender = client
 	switch message.Action {
@@ -63,6 +72,9 @@ func (client *Client) handleNewMessage(jsonMessage []byte) {
 
 	case JoinRoomAction:
 		roomId := message.Message
+		// sender := message.Sender
+		// log.Printf("Sender JoinRoomAction: %+v\n Name: %s", message.Sender, message.Sender.Name)
+		// log.Printf("handleNewMessage Sender: %s", message.Sender.Name)
 		client.joinRoom(roomId)
 	case LeaveRoomAction:
 		roomId := message.Message
@@ -72,6 +84,13 @@ func (client *Client) handleNewMessage(jsonMessage []byte) {
 		}
 		log.Println("leaving room:", roomId)
 		room.unregister <- client
+
+	case StartGameAction:
+		//for starting a new match after win/draw/loss
+		roomId := message.Target.GetId()
+		if room := client.hub.findRoomByID(roomId); room != nil {
+			room.startGame(client)
+		}
 	default:
 		break
 	}
@@ -116,11 +135,14 @@ func (client *Client) isInRoom(room *Room) bool {
 	return false
 }
 func (client *Client) notifyRoomJoined(room *Room) {
+	log.Printf("Client: %s,%s joined room: %s", client.ID, client.Name, room.ID)
+	//todo must join room once, this joins a room again and ignores client name passed
 	message := &Message{
 		Action:  JoinRoomAction,
 		Message: room.ID,
-		Target:  room,
-		Sender:  client}
+		// Message: fmt.Sprintf("Client: %s,%s joined room: %s", client.ID, client.Name, room.ID),
+		Target: room,
+		Sender: client}
 	client.send <- message.encode()
 
 }

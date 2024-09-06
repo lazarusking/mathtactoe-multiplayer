@@ -35,7 +35,9 @@ func NewRoom(id string) *Room {
 	}
 }
 func (room *Room) GetRoomSize() int {
+	//return players instead so other clients can join the room as spectators
 	return len(room.clients)
+	// return len(room.game.Players)
 }
 func (room *Room) RunRoom() {
 	for {
@@ -63,21 +65,24 @@ func (room *Room) RunRoom() {
 			}
 
 		case client := <-room.register:
+			log.Println("Client Register")
 			log.Println(room.GetRoomSize(), len(room.game.Clients), len(room.game.Players))
 			// if len(room.game.Clients) >= 2 || room.GetRoomSize() >= 2 {
 			if len(room.game.Players) >= 2 || room.GetRoomSize() >= 2 {
 				room.notifyFullRoom(client)
-				break
+				// break
+				// todo: have to allow multiple clients in for spectating
 			}
-			// room.notifyClientJoined(client)
+			room.notifyClientJoined(client)
 			room.clients[client] = true
+			log.Printf("%v size", room.GetRoomSize())
+			room.game.Clients = append(room.game.Clients, client)
 			if room.GetRoomSize() == 2 {
 				for client := range room.clients {
 					if _, exists := room.clients[client]; exists {
 						a := room.game.Options[room.game.CurrentPlayer]
 						log.Println("current Player:", room.game.CurrentPlayer)
 						room.game.Players[client.ID] = a
-						room.game.Clients = append(room.game.Clients, client)
 						room.game.switchPlayer()
 					}
 				}
@@ -86,9 +91,17 @@ func (room *Room) RunRoom() {
 			// for k := range room.clients {
 			// 	log.Println("client:", k.isInRoom(room), k.rooms, k.ID)
 			// }
+			room.broadcastGameStateToClients()
 			if room.GetRoomSize() >= 2 || len(room.game.Players) >= 2 {
 				room.startGame(client)
 			}
+			log.Printf("%v room size.....player count %v ", room.GetRoomSize(), len(room.game.Players))
+
+			// log.Printf("Room Size:%d\n %v", room.GetRoomSize(), room.ID)
+			// for k := range room.clients {
+			// 	log.Println("client:", k.isInRoom(room), k.rooms, k.ID)
+			// }
+			// if room.GetRoomSize() >= 2 || len(room.game.Players) >= 2 {
 
 		case client := <-room.unregister:
 			// log.Printf("69:%v -%d", client.ID, room.GetRoomSize())
@@ -99,13 +112,21 @@ func (room *Room) RunRoom() {
 			// log.Printf("102: leaving: %v -%d", client.ID, room.game.Players[client.ID])
 			room.setStatus(false, false, false)
 			// room.game.reset()
-			room.game = *NewGame()
-			// room.updateState()
-			room.startGame(client)
+			// room.game = *NewGame()
+			if len(room.game.Players) < 2 {
+				room.game = *NewGame() // Reset the game if there are fewer than 2 players,also removes the Player,CLients
+				log.Println("Game reset due to insufficient players")
+				// }
+
+				// room.updateState()
+				//client wouldnt exist at this point so why did I pass
+				room.startGame(client)
+			}
 		}
 	}
 }
 func (room *Room) startGame(client *Client) {
+	room.setStatus(false, false, false)
 	game, _ := json.Marshal(room.game)
 	log.Println("Game Start")
 	log.Println(len(room.clients), len(room.game.Players), room.game.CurrentPlayer)
@@ -196,11 +217,37 @@ func (room *Room) checkWinState(message *Message) {
 	}
 }
 
+func (room *Room) broadcastGameStateToClients() {
+	// Marshal the current game state
+	gameState, err := json.Marshal(room.game)
+	if err != nil {
+		log.Printf("Error marshalling game state: %s", err)
+		return
+	}
+
+	// Create a message to send to all clients
+	log.Println("Sending gamestate to all clients")
+	message := &Message{
+		Action:  "", // You can create a specific action if necessary
+		Message: string(gameState),
+		Target:  room,
+	}
+
+	// Send the game state to all clients
+	for client := range room.clients {
+		client.send <- message.encode()
+	}
+}
+
 func (room *Room) notifyClientJoined(client *Client) {
+	clientName := client.Name
+	if clientName == "" {
+		clientName = client.GetID()
+	}
 	message := &Message{
 		Action:  SendMessageAction,
 		Target:  room,
-		Message: fmt.Sprintf(welcomeMessage, client.GetID()),
+		Message: fmt.Sprintf(welcomeMessage, clientName),
 	}
 	log.Println(client.ID, "Joined room", room.ID)
 	for client := range room.clients {

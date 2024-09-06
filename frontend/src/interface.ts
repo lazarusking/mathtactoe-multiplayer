@@ -11,7 +11,6 @@ export interface Target {
 }
 
 export interface Sender {
-  UserID: string
   id: string
   name: string
 }

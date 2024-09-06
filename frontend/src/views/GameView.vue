@@ -1,13 +1,27 @@
 <script setup lang="ts">
 import GameWinModal from '@/components/GameWinModal.vue'
+import ChatComponent from '@/components/ChatComponent.vue'
+import Chat from '@/components/ChatUI.vue'
+import FloatingChatButton from '@/components/FloatingChatButton.vue'
 import type { Detail, WSMessage } from '@/interface'
 import { websocket } from '@/lib/socket'
 import router from '@/router'
 import { useWebSocket } from '@vueuse/core'
 import { computed, onUnmounted, reactive, ref, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
+import { MessageSquare, X } from 'lucide-vue-next'
 const route = useRoute()
+const username = ref('')
+const chatMessages = ref<{ sender: string, text: string }[]>([])
+const showChat = ref(false)
 
+function toggleChat() {
+    showChat.value = !showChat.value;
+}
+const storedUsername = localStorage.getItem('username') || ''
+if (storedUsername) {
+    username.value = storedUsername
+}
 
 function shareRoom() {
     const data: ShareData = { url: route.fullPath, text: "Join me let's play!", title: "TicTacToe Math" }
@@ -32,16 +46,25 @@ function shareRoom() {
 }
 
 function playAgain() {
-    router.go(0)
+    // router.go(0)
+    console.log("replaying game");
+
+    const data = {
+        action: 'start-game',
+        message: "starting new game",
+        sender: { ...WSState.data.sender, name: username.value },
+        target: { ...WSState.data.target, id: route.params.room as string }
+
+    };
+    send(JSON.stringify(data));
 }
 
 const { data, send } = useWebSocket(websocket.url, {
     onMessage(ws, event) {
         handleMessage(event)
-    },
+    }, immediate: true,
     autoReconnect: true
 })
-
 
 const options = () => {
     const arr = []
@@ -79,7 +102,7 @@ const gameState = reactive({
                 return
             }
         }
-        if (this.isSelecting && isCurrentPlayer()) {
+        if (this.isSelecting && isCurrentPlayer.value) {
             tictacGrid.value = tictacGrid.value.map((grid) => {
                 if (grid.id == this.selectedGrid.id && grid.number === '-') {
                     return { ...grid, number: button.number.toString() }
@@ -93,9 +116,11 @@ const gameState = reactive({
             this.isSelecting = false
             this.selectedGrid = { id: 0, number: '-' }
             const message = JSON.stringify({
+                ...WSState.data,
                 action: 'send-game',
                 message: JSON.stringify(tictacGrid.value),
                 // target: (WSState.data as WSMessage).target
+                sender: { ...WSState.data.sender, name: username.value },
                 target: { ...WSState.data.target, id: route.params.room as string }
 
             } as WSMessage)
@@ -118,7 +143,7 @@ const gameState = reactive({
         }, 1000);
     }
 })
-const clients = computed(() => (Object.keys(gameState.players)))
+const players = computed(() => (Object.keys(gameState.players)))
 
 
 const WSState = reactive({
@@ -166,9 +191,23 @@ const WSState = reactive({
 //     }
 // }
 
+
+function sendChatMessage(message: string) {
+    const chatMessage = {
+        action: 'send-message',
+        message: message,
+        sender: { id: WSState.clientID, name: username.value },
+        target: { id: route.params.room as string }
+    };
+    send(JSON.stringify(chatMessage));
+}
 watchEffect(() => {
     if (route.params.room) {
-        send(JSON.stringify({ action: 'join-room', message: route.params.room }))
+        //here doesn't add the sender name
+        const data = { action: 'join-room', message: route.params.room, sender: { name: username.value } }
+        console.log(WSState.data, "current state after joining room");
+        // send({data})
+        send(JSON.stringify({ ...data, action: 'join-room', message: route.params.room }))
     }
 })
 
@@ -191,6 +230,8 @@ function handleMessage(event: MessageEvent<string>) {
             case 'start-game': {
                 const message = JSON.parse(WSMessage.message)
                 WSState.data = WSMessage
+                console.log(WSState.data.sender, "current sender state");
+
                 tictacGrid.value = options()
                 console.log(message)
                 WSState.clients = message.clients
@@ -212,6 +253,8 @@ function handleMessage(event: MessageEvent<string>) {
             }
             case 'send-message': {
                 // WSState.data = WSMessage
+                console.log(WSMessage);
+                chatMessages.value.push({ sender: WSMessage.sender?.name ?? "system", text: WSMessage.message })
                 break
             }
             case 'send-game': {
@@ -252,9 +295,10 @@ function handleMessage(event: MessageEvent<string>) {
                 break
             }
             default:
-                // console.log(JSON.parse(WSMessage.message))
-                WSState.clients = JSON.parse(WSMessage.message).clients
-                gameState.players = JSON.parse(WSMessage.message).players
+                console.log(JSON.parse(WSMessage.message))
+                const message = JSON.parse(WSMessage.message)
+                WSState.clients = message.clients
+                gameState.players = message.players
                 break
         }
 
@@ -262,32 +306,49 @@ function handleMessage(event: MessageEvent<string>) {
 }
 
 
-const isCurrentPlayer = () => {
+const isCurrentPlayer = computed(() => {
     const currentClient = WSState.clientID
     //   console.log(
     //     currentClient,
     //     WSState.clients[gameState.currentPlayer].id,
     //     currentClient === WSState.clients[gameState.currentPlayer].id
     //   )
-    if (clients.value.length >= 2 && currentClient === clients.value[gameState.currentPlayer]) {
+    if (players.value.length >= 2 && currentClient === players.value[gameState.currentPlayer]) {
         return true
     }
     return false
-}
+})
+
+
 const isPlayingClasses = computed(() => {
     return {
         'blur-none opacity-75': gameState.isSelecting,
-        'pointer-events-none': !isCurrentPlayer()
+        'pointer-events-none': !isCurrentPlayer
     }
 })
 
+const isSpectator = computed(() => {
+    return !players.value.includes(WSState.clientID);
+});
 const playerName = computed(() => {
-    return isCurrentPlayer() ? 'Your Turn' : "Opponent's Turn"
+    console.log(WSState.data.sender);
+    const opponent = WSState.clients.find(client => client.id !== WSState.clientID)
+    // If the current user is not a player, consider them a spectator
+    if (isSpectator) {
+        return `You are spectating ${opponent?.name ?? "a game"}`;
+    }
+    // if (opponent) {
+    //     playerNames.opponentPlayer = opponent.name
+    // }
+    const currentUsername = username.value ? ` (${username.value})` : '';
+    const opponentName = opponent?.name ? ` (${opponent.name})` : '';
+
+    return isCurrentPlayer.value ? `Your Turn${currentUsername}` : `Opponent's Turn${opponentName}`;
 })
 
 </script>
 <template>
-    <div v-if="clients.length < 2" aria-modal="true"
+    <!-- <div v-if="WSState.clients.length > 0" aria-modal="true"
         class="fixed inset-0 z-10 flex items-center justify-center text-gray-500 bg-black bg-opacity-50" role="dialog">
         <div class="max-w-md px-4 py-8 mx-auto space-y-2 text-center text-white rounded-lg sm:px-6 lg:px-8">
             <p class="text-3xl font-bold"> Waiting for an opponent... </p>
@@ -303,7 +364,7 @@ const playerName = computed(() => {
             </button>
         </div>
 
-    </div>
+    </div> -->
     <Transition>
         <div v-if="gameState.toastMsg"
             class="transition ease-in-out fixed inset-0 z-10 flex items-center justify-center text-gray-500 bg-opacity-50">
@@ -313,16 +374,17 @@ const playerName = computed(() => {
             </div>
         </div>
     </Transition>
-    <main :class="{ 'blur': clients.length < 2 }"
-        class="container flex flex-col items-center justify-center h-screen px-4 py-12 mx-auto">
-        <h2 v-if="clients.length >= 2" class="px-4 py-2 mb-4 text-2xl font-bold text-center text-white"
-            :class="{ 'bg-green-700': playerName === 'Your Turn', 'bg-red-700': playerName === `Opponent's Turn` }">{{
+    <!-- <main :class="{ 'blur': players.length < 2 }" -->
+    <main class="relative container flex flex-col items-center justify-center h-screen px-4 py-12 mx-auto">
+        <h2 v-if="players.length >= 2" class="px-4 py-2 mb-4 text-2xl font-bold text-center text-white"
+            :class="[isSpectator ? 'bg-gray-500' : (isCurrentPlayer ? 'bg-green-700' : 'bg-red-700')]">
+            {{
                 playerName
             }}</h2>
         <!-- <button @click="randPlay">Play</button> -->
 
-        <section aria-label="tictac grid buttons" class="grid w-full max-w-md grid-cols-3 grid-rows-3 gap-4 shadow-md h-3/5"
-            :class="isPlayingClasses">
+        <section aria-label="tictac grid buttons"
+            class="grid w-full max-w-md grid-cols-3 grid-rows-3 gap-4 shadow-md h-3/5" :class="isPlayingClasses">
             <button aria-label="tictac button" @click="gameState.selectGrid(y)" type="button"
                 :class="{ 'ring ring-offset-2 ring-offset-slate-800 ring-blue-700': gameState.selectedGrid.id === y.id }"
                 class="grid items-center justify-center w-auto h-auto p-8 text-4xl font-black text-white transition-colors bg-gray-600 rounded-lg shadow-md place-content-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none hover:bg-slate-700"
@@ -339,12 +401,83 @@ const playerName = computed(() => {
             </button>
         </section>
         <GameWinModal :game-status="gameState.gameStatus" @play-again="playAgain" />
+        <!-- <div v-if="showChat" class="lg:w-1/3 h-[400px] lg:h-auto">
+            <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden h-full flex flex-col">
+                <div class="flex items-center justify-between p-3 bg-gray-700">
+                    <div class="flex items-center">
+                        <MessageSquare class="w-5 h-5 text-blue-400 mr-2" />
+                        <h2 class="text-lg font-bold text-gray-100">Chat</h2>
+                    </div>
+                    <button @click="toggleChat" class="lg:hidden text-gray-400 hover:text-white focus:outline-none">
+                        <X class="w-5 h-5" />
+                    </button>
+                </div>
+                <ChatComponent :player-name="username" :room-id="route.params.room as string" :messages="chatMessages"
+                    @send-message="sendChatMessage" />
+            </div>
+        </div> -->
+        <Chat :player-name="username" :messages="chatMessages" @send-message="sendChatMessage" @toggle="toggleChat" />
+        <div v-if="showChat" class="hidden md:block absolute top-0 right-0 w-1/3 h-[400px] lg:h-auto">
+            <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden h-full flex flex-col">
+                <div class="flex items-center justify-between p-3 bg-gray-700">
+                    <div class="flex items-center">
+                        <MessageSquare class="w-5 h-5 text-blue-400 mr-2" />
+                        <h2 class="text-lg font-bold text-gray-100">Chat</h2>
+                    </div>
+                    <button @click="toggleChat" class="lg:hidden text-gray-400 hover:text-white focus:outline-none">
+                        <X class="w-5 h-5" />
+                    </button>
+                </div>
+                <ChatComponent :player-name="username" :room-id="route.params.room as string" :messages="chatMessages"
+                    @send-message="sendChatMessage" />
+            </div>
+        </div>
+        <FloatingChatButton @toggle="toggleChat" />
+
     </main>
+    <Transition name="slide-up">
+        <div v-if="showChat" class="absolute inset-0 bg-gray-900 bg-opacity-95 flex flex-col z-10">
+            <!-- <div class="bg-gray-800 rounded-t-lg shadow-lg overflow-hidden flex-grow flex flex-col">
+            </div> -->
+            <div class="bg-gray-800 p-4 flex justify-between items-center">
+                <div class="flex items-center">
+                    <MessageSquare class="w-5 h-5 text-blue-400 mr-2" />
+                    <h2 class="text-lg font-bold text-gray-100">Chat</h2>
+                </div>
+                <button @click="toggleChat" class="text-gray-400 hover:text-white focus:outline-none">
+                    <X class="w-5 h-5" />
+                </button>
+            </div>
+            <ChatComponent :player-name="username" :room-id="route.params.room as string" :messages="chatMessages"
+                @send-message="sendChatMessage" />
+        </div>
+    </Transition>
 </template>
 
 <style scoped>
 .v-enter-from,
 .v-leave-to {
     opacity: .2;
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+    transition: all 0.3s ease-out;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+    transform: translateY(100%);
+    opacity: 0;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
 }
 </style>

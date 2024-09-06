@@ -3,22 +3,42 @@ import type { WSMessage } from '@/interface'
 import { websocket } from '@/lib/socket'
 import router from '@/router'
 import { useWebSocket } from '@vueuse/core'
-import { ref, watchEffect } from 'vue'
+import { onMounted, ref, watch, watchEffect } from 'vue'
 import HelpModal from './modal/HelpModal.vue'
+import { InfoIcon, Users, Trophy, Settings } from 'lucide-vue-next'
 
 const roomId = ref('')
+const playerName = ref('')
 const showHelp = ref(false)
+const activeTab = ref('create')
+
+onMounted(() => {
+  const storedUsername = localStorage.getItem('username')
+  if (storedUsername) {
+    playerName.value = storedUsername
+  }
+})
 const { data, send } = useWebSocket(websocket.url, {
   onMessage(ws, event) {
     handleMessage(event)
-  }
+  }, autoReconnect: true
 })
 
+watch(playerName, () => {
+  localStorage.setItem('username', playerName.value)
+})
 watchEffect(() => {
   console.log(data)
 })
+
 function createRoom() {
-  send(JSON.stringify({ action: 'join-room', message: null }))
+  const data: WSMessage = { action: 'join-room', message: null, sender: { name: playerName.value } }
+  console.log(data, "createRoom data");
+
+  send(JSON.stringify(data))
+  //clicking this sends a msg to ws, ws then joins room and sends room id created
+  //client then leaves the room because the handleMessage navigates to a new page
+  //new page GameView calls another join-room,creates another new client for the same client
 }
 
 function handleMessage(event: MessageEvent) {
@@ -26,63 +46,150 @@ function handleMessage(event: MessageEvent) {
   switch (data.action) {
     case 'join-room':
       console.log(data)
-      router.push(data.message)
+      console.log("Did this run")
+      router.push({ name: "room", params: { room: data.message } })
+      // router.push(data.message)
       break
+    case 'send-message': {
+      // WSState.data = WSMessage
+      console.log(data)
+      router.push({ name: "room", params: { room: data.message } })
+      // console.log(WSMessage);
+      break
+    }
     default:
       break
   }
 }
+
 function closeModal() {
   showHelp.value = false
+}
+
+function joinGame() {
+  if (roomId.value) {
+    const data: WSMessage = { action: 'join-room', message: null, sender: { name: playerName.value } }
+    router.push({ name: "room", params: { username: 'eduardo', room: roomId.value } })
+  }
+}
+
+const showLeaderboard = () => {
+  console.log('Showing leaderboard')
+}
+
+const showOnlinePlayers = () => {
+  console.log('Showing online players')
+}
+
+const showSettings = () => {
+  console.log('Showing settings')
 }
 
 </script>
 
 <template>
-  <div @click="showHelp = !showHelp" class="flex mx-auto container max-w-screen-md  py-1 sm:py-2 sm:px-6 lg:px-8">
-    <div class="ml-auto flex flex-wrap items-center justify-between">
-      <button type="button"
-        class="text-white items-center text-lg p-3 font-semibold rounded hover:bg-blue-500 hover:text-white">
-        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
-          xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z">
-          </path>
-        </svg>
-        <span class="sr-only">How to play?</span>
-      </button>
+  <div class="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-gray-100 flex flex-col">
+    <div @click="showHelp = !showHelp" class="flex mx-auto container max-w-screen-md py-1 sm:py-2 sm:px-6 lg:px-8">
+      <div class="ml-auto flex flex-wrap items-center justify-between">
+        <button type="button"
+          class="text-white items-center text-lg p-3 font-semibold rounded hover:bg-blue-500 hover:text-white">
+          <InfoIcon class="h-6 w-6" />
+          <span class="sr-only">How to play?</span>
+        </button>
+      </div>
     </div>
-  </div>
-  <HelpModal :show-help="showHelp" @close-modal="closeModal" />
-  <div class="flex justify-center items-center space-x-2">
-    <h1 class="text-2xl font-bold text-center">TicTacToe Math</h1>
-    <!-- <img src="@/assets/three-in-a-row.png" class="w-32" /> -->
-    <!-- <img src="@/assets/tic-tac-toe.png" class="w-32" /> -->
-  </div>
-  <div aria-modal="true" class="z-50 flex items-center justify-center flex-1 text-gray-500 bg-opacity-50" role="dialog">
-    <div class="w-auto max-w-md px-4 py-8 mx-auto bg-gray-800 rounded-lg sm:w-80 md:w-full sm:px-6 lg:px-8">
-      <h2 class="mb-4 text-2xl font-bold text-center text-white">Enter Game</h2>
-      <form>
-        <div class="mb-3">
-          <label class="block text-sm font-medium text-gray-200" htmlFor="room-id">
-            Room ID
-          </label>
-          <input v-model="roomId" required
-            class="block w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
-            id="room-id" placeholder="Enter Room ID" type="text" />
+
+    <HelpModal :show-help="showHelp" @close-modal="closeModal" />
+
+    <div class="flex-grow flex items-center justify-center p-4">
+      <div class="w-full max-w-md">
+        <div class="flex justify-center items-center space-x-2 mb-6">
+          <h1
+            class="text-4xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-green-400">
+            TicTacToe Math
+          </h1>
         </div>
-        <div class="items-center justify-between space-y-2 font-medium md:flex md:space-y-0 md:space-x-2">
-          <button @click="$router.push(roomId)" class="w-full py-2 text-center text-white bg-blue-700 rounded-md md:w-1/2"
-            type="submit">
-            Join Game
+        <div class="text-center mb-6">
+          <span class="bg-gray-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">Multiplayer</span>
+        </div>
+
+        <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-6">
+          <div class="mb-6">
+            <div class="flex border-b border-gray-700">
+              <button @click="activeTab = 'join'"
+                :class="['flex-1 py-2 px-4 focus:outline-none transition-colors duration-200',
+                  activeTab === 'join' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-gray-200']">
+                Join Game
+              </button>
+              <button @click="activeTab = 'create'"
+                :class="['flex-1 py-2 px-4 focus:outline-none transition-colors duration-200',
+                  activeTab === 'create' ? 'border-b-2 border-green-500 text-green-400' : 'text-gray-400 hover:text-gray-200']">
+                Create Game
+              </button>
+            </div>
+          </div>
+
+          <div v-if="activeTab === 'join'">
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-200 mb-2" for="room-id">
+                Room ID
+              </label>
+              <input v-model="roomId" required
+                class="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                id="room-id" placeholder="Enter Room ID" type="text" />
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-200 mb-2" for="player-name">
+                Your Name
+              </label>
+              <input v-model="playerName" required
+                class="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                id="player-name" placeholder="Enter your name" type="text" />
+            </div>
+            <button @click="joinGame"
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200 ease-in-out">
+              Join Game
+            </button>
+          </div>
+
+          <div v-else>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-200 mb-2" for="create-player-name">
+                Your Name
+              </label>
+              <input v-model="playerName" required
+                class="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 transition duration-200"
+                id="create-player-name" placeholder="Enter your name" type="text" />
+            </div>
+            <button @click="createRoom"
+              class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200 ease-in-out">
+              Create New Game
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-8 flex justify-center space-x-4">
+          <button @click="showLeaderboard"
+            class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200"
+            aria-label="Leaderboard">
+            <Trophy class="h-6 w-6" />
           </button>
-          <button @click="createRoom" class="w-full py-2 text-center text-white bg-green-700 rounded-md md:w-1/2"
-            type="button">
-            Start New Game
+          <button @click="showOnlinePlayers"
+            class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200"
+            aria-label="Players Online">
+            <Users class="h-6 w-6" />
+          </button>
+          <button @click="showSettings"
+            class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200" aria-label="Settings">
+            <Settings class="h-6 w-6" />
+          </button>
+          <button @click="showHelp = true"
+            class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200"
+            aria-label="Information">
+            <InfoIcon class="h-6 w-6" />
           </button>
         </div>
-      </form>
+      </div>
     </div>
   </div>
 </template>
-

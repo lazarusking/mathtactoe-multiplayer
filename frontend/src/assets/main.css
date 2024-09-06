@@ -9,3 +9,7 @@
   /* padding: 2rem; */
   font-weight: normal;
 }
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}

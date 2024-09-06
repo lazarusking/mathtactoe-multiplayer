@@ -32,7 +32,7 @@ watchEffect(() => {
 })
 
 function createRoom() {
-  const data: WSMessage = { action: 'join-room', message: null, sender: { name: playerName.value } }
+  const data = { action: 'join-room', message: null, sender: { name: playerName.value } }
   console.log(data, "createRoom data");
 
   send(JSON.stringify(data))
@@ -68,7 +68,7 @@ function closeModal() {
 
 function joinGame() {
   if (roomId.value) {
-    const data: WSMessage = { action: 'join-room', message: null, sender: { name: playerName.value } }
+    const data = { action: 'join-room', message: null, sender: { name: playerName.value } }
     router.push({ name: "room", params: { username: 'eduardo', room: roomId.value } })
   }
 }

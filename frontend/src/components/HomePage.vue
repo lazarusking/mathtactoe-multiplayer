@@ -3,9 +3,9 @@ import type { WSMessage } from '@/interface'
 import { websocket } from '@/lib/socket'
 import router from '@/router'
 import { useWebSocket } from '@vueuse/core'
+import { InfoIcon } from 'lucide-vue-next'
 import { onMounted, ref, watch, watchEffect } from 'vue'
 import HelpModal from './modal/HelpModal.vue'
-import { InfoIcon, Users, Trophy, Settings } from 'lucide-vue-next'
 
 const roomId = ref('')
 const playerName = ref('')
@@ -68,7 +68,7 @@ function closeModal() {
 
 function joinGame() {
   if (roomId.value) {
-    const data = { action: 'join-room', message: null, sender: { name: playerName.value } }
+    // const data = { action: 'join-room', message: null, sender: { name: playerName.value } }
     router.push({ name: "room", params: { username: 'eduardo', room: roomId.value } })
   }
 }
@@ -89,7 +89,7 @@ const showSettings = () => {
 
 <template>
   <div class="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-gray-100 flex flex-col">
-    <div @click="showHelp = !showHelp" class="flex mx-auto container max-w-screen-md py-1 sm:py-2 sm:px-6 lg:px-8">
+    <!-- <div @click="showHelp = !showHelp" class="flex mx-auto container max-w-screen-md py-1 sm:py-2 sm:px-6 lg:px-8">
       <div class="ml-auto flex flex-wrap items-center justify-between">
         <button type="button"
           class="text-white items-center text-lg p-3 font-semibold rounded hover:bg-blue-500 hover:text-white">
@@ -97,7 +97,7 @@ const showSettings = () => {
           <span class="sr-only">How to play?</span>
         </button>
       </div>
-    </div>
+    </div> -->
 
     <HelpModal :show-help="showHelp" @close-modal="closeModal" />
 
@@ -108,6 +108,12 @@ const showSettings = () => {
             class="text-4xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-green-400">
             TicTacToe Math
           </h1>
+          <button @click="showHelp = true"
+            class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200"
+            aria-label="Information">
+            <InfoIcon class="h-6 w-6" />
+            <span class="sr-only">How to play?</span>
+          </button>
         </div>
         <div class="text-center mb-6">
           <span class="bg-gray-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">Multiplayer</span>
@@ -168,7 +174,7 @@ const showSettings = () => {
           </div>
         </div>
 
-        <div class="mt-8 flex justify-center space-x-4">
+        <!-- <div class="mt-8 flex justify-center space-x-4">
           <button @click="showLeaderboard"
             class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200"
             aria-label="Leaderboard">
@@ -188,7 +194,7 @@ const showSettings = () => {
             aria-label="Information">
             <InfoIcon class="h-6 w-6" />
           </button>
-        </div>
+        </div> -->
       </div>
     </div>
   </div>

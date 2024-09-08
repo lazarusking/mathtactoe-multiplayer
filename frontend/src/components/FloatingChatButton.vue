@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { useDraggable } from '@vueuse/core';
 import { MessageSquare } from 'lucide-vue-next';
 import { onMounted, onUnmounted, ref } from 'vue';
-import { UseDraggable } from "@vueuse/components";
-const emit = defineEmits<{
+defineEmits<{
   (e: 'toggle'): void;
 }>();
 const buttonPosition = ref({ x: 0, y: 0 })
@@ -13,69 +11,85 @@ const savePosition = () => {
   localStorage.setItem('buttonPosition', JSON.stringify(buttonPosition.value));
 };
 const startDrag = (event: TouchEvent | MouseEvent) => {
-  isDragging.value = true
-  const touch = event instanceof TouchEvent ? event.touches[0] : event;
-  dragOffset.value = {
-    x: touch.clientX - buttonPosition.value.x,
-    y: touch.clientY - buttonPosition.value.y
+  isDragging.value = true;
+  let point;
+  if (typeof TouchEvent !== 'undefined' && event instanceof TouchEvent) {
+    point = event.touches[0];
+  } else {
+    point = event as MouseEvent;
   }
-}
+
+  dragOffset.value = {
+    x: point.clientX - buttonPosition.value.x,
+    y: point.clientY - buttonPosition.value.y
+  };
+};
 
 const onDrag = (event: TouchEvent | MouseEvent) => {
   if (isDragging.value) {
-    const touch = event instanceof TouchEvent ? event.touches[0] : event;
-    buttonPosition.value = {
-      x: touch.clientX - dragOffset.value.x,
-      y: touch.clientY - dragOffset.value.y
+    let point;
+    if (typeof TouchEvent !== 'undefined' && event instanceof TouchEvent) {
+      point = event.touches[0];
+    } else {
+      point = event as MouseEvent;
     }
+
+    buttonPosition.value = {
+      x: point.clientX - dragOffset.value.x,
+      y: point.clientY - dragOffset.value.y
+    };
   }
-}
+};
 
 const endDrag = () => {
-  isDragging.value = false
+  isDragging.value = false;
   savePosition();
-}
+};
 
 onMounted(() => {
   const savedPosition = localStorage.getItem('buttonPosition');
   if (savedPosition) {
-    buttonPosition.value = JSON.parse(savedPosition); // Apply saved position
+    buttonPosition.value = JSON.parse(savedPosition);
   }
-  document.addEventListener('touchmove', onDrag, { passive: false })
-  document.addEventListener('touchend', endDrag)
 
+  // Touch event listeners
+  document.addEventListener('touchmove', onDrag, { passive: false });
+  document.addEventListener('touchend', endDrag);
+
+  // Mouse event listeners
   document.addEventListener('mousemove', onDrag);
   document.addEventListener('mouseup', endDrag);
-  document.addEventListener('mousedown', endDrag);
-  document.addEventListener('mouseenter', endDrag);
-  document.addEventListener('mouseover', endDrag);
-})
+});
 
 onUnmounted(() => {
-  document.removeEventListener('touchmove', onDrag)
-  document.removeEventListener('touchend', endDrag)
+  // Remove touch event listeners
+  document.removeEventListener('touchmove', onDrag);
+  document.removeEventListener('touchend', endDrag);
 
+  // Remove mouse event listeners
   document.removeEventListener('mousemove', onDrag);
   document.removeEventListener('mouseup', endDrag);
-
-  document.removeEventListener('mousedown', endDrag);
-  document.removeEventListener('mouseenter', endDrag);
-  document.removeEventListener('mouseover', endDrag);
-})
+});
 
 
 const el = ref<HTMLElement | null>(null)
 
 // `style` will be a helper computed for `left: ?px; top: ?px;`
-const { x, y, style } = useDraggable(el, {
-  initialValue: { x: 100, y: 100 },
-})
+// const { x, y, style, position } = useDraggable(el, {
+//   initialValue: { x: 100, y: 100 },
+// })
+// console.log(style.value, position.value)
 </script>
 <!-- class="bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"> -->
 
 <template>
-  <button ref="el" @click="$emit('toggle')" :style="style" style="touch-action: none;" @touchstart.capture="startDrag"
-    class="fixed bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 outline-none">
+  <button ref="el" @click="$emit('toggle')" :style="{
+    // position: 'absolute',
+    left: `${buttonPosition.x}px`,
+    top: `${buttonPosition.y}px`,
+    touchAction: 'none'
+  }" style="touch-action: none;" @touchstart.capture="startDrag" @mousedown.capture="startDrag"
+    class="fixed md:hidden block bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 outline-none">
     <MessageSquare class="w-6 h-6" />
   </button>
   <button @click="$emit('toggle')"

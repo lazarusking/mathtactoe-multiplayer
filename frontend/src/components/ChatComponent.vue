@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { Send } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -67,8 +67,8 @@ watch(() => props.messages, scrollToBottom, { deep: true });
         <p v-else class="rounded-lg text-sm font-semibold"
           :class="message.sender === playerName ? 'text-blue-200' : 'text-gray-300'">
           {{ message.sender }}
-        <p class="text-white text-base">{{ message.text }}</p>
         </p>
+        <p class="text-white text-base">{{ message.text }}</p>
       </div>
     </div>
     <div class="p-3 bg-gray-700">

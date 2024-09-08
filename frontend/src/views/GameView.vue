@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import GameWinModal from '@/components/GameWinModal.vue'
-import ChatComponent from '@/components/ChatComponent.vue'
 import Chat from '@/components/ChatUI.vue'
 import FloatingChatButton from '@/components/FloatingChatButton.vue'
+import GameWinModal from '@/components/GameWinModal.vue'
 import type { Detail, WSMessage } from '@/interface'
 import { websocket } from '@/lib/socket'
-import router from '@/router'
 import { useWebSocket } from '@vueuse/core'
 import { computed, onUnmounted, reactive, ref, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
-import { MessageSquare, X } from 'lucide-vue-next'
 const route = useRoute()
 const username = ref('')
 const chatMessages = ref<{ sender: string, text: string }[]>([])
@@ -226,9 +223,10 @@ function handleMessage(event: MessageEvent<string>) {
     console.log(data);
     for (let i = 0; i < data.length; i++) {
         const WSMessage: WSMessage = JSON.parse(data[i])
+        let message; // Move the declaration here
         switch (WSMessage.action) {
             case 'start-game': {
-                const message = JSON.parse(WSMessage.message)
+                message = JSON.parse(WSMessage.message) // Assign the value here
                 WSState.data = WSMessage
                 console.log(WSState.data.sender, "current sender state");
 
@@ -243,7 +241,7 @@ function handleMessage(event: MessageEvent<string>) {
             }
             case 'update-game': {
                 WSState.data = WSMessage
-                const message = JSON.parse(WSMessage.message)
+                message = JSON.parse(WSMessage.message) // Assign the value here
                 // gameState.currentPlayer = message.currentPlayer
                 gameState.currentPlayer = message
                 console.log(message)
@@ -259,7 +257,7 @@ function handleMessage(event: MessageEvent<string>) {
             }
             case 'send-game': {
                 // WSState.data = WSMessage
-                const message = JSON.parse(WSMessage.message)
+                message = JSON.parse(WSMessage.message) // Assign the value here
                 console.log(WSMessage);
                 tictacGrid.value = message
                 break
@@ -296,7 +294,7 @@ function handleMessage(event: MessageEvent<string>) {
             }
             default:
                 console.log(JSON.parse(WSMessage.message))
-                const message = JSON.parse(WSMessage.message)
+                message = JSON.parse(WSMessage.message) // Assign the value here
                 WSState.clients = message.clients
                 gameState.players = message.players
                 break
@@ -323,7 +321,7 @@ const isCurrentPlayer = computed(() => {
 const isPlayingClasses = computed(() => {
     return {
         'blur-none opacity-75': gameState.isSelecting,
-        'pointer-events-none': !isCurrentPlayer
+        'pointer-events-none': !isCurrentPlayer.value
     }
 })
 
@@ -334,7 +332,7 @@ const playerName = computed(() => {
     console.log(WSState.data.sender);
     const opponent = WSState.clients.find(client => client.id !== WSState.clientID)
     // If the current user is not a player, consider them a spectator
-    if (isSpectator) {
+    if (isSpectator.value) {
         return `You are spectating ${opponent?.name ?? "a game"}`;
     }
     // if (opponent) {
@@ -348,7 +346,7 @@ const playerName = computed(() => {
 
 </script>
 <template>
-    <!-- <div v-if="WSState.clients.length > 0" aria-modal="true"
+    <div v-if="WSState.clients.length < 1" aria-modal="true"
         class="fixed inset-0 z-10 flex items-center justify-center text-gray-500 bg-black bg-opacity-50" role="dialog">
         <div class="max-w-md px-4 py-8 mx-auto space-y-2 text-center text-white rounded-lg sm:px-6 lg:px-8">
             <p class="text-3xl font-bold"> Waiting for an opponent... </p>
@@ -364,7 +362,7 @@ const playerName = computed(() => {
             </button>
         </div>
 
-    </div> -->
+    </div>
     <Transition>
         <div v-if="gameState.toastMsg"
             class="transition ease-in-out fixed inset-0 z-10 flex items-center justify-center text-gray-500 bg-opacity-50">
@@ -416,8 +414,14 @@ const playerName = computed(() => {
                     @send-message="sendChatMessage" />
             </div>
         </div> -->
-        <Chat :player-name="username" :messages="chatMessages" @send-message="sendChatMessage" @toggle="toggleChat" />
-        <div v-if="showChat" class="hidden md:block absolute top-0 right-0 w-1/3 h-[400px] lg:h-auto">
+
+        <Chat class="hidden md:block w-80" v-if="showChat" :player-name="username" :messages="chatMessages"
+            @send-message="sendChatMessage" @toggle="showChat = false" :users="WSState.clients.length" />
+
+        <Chat class="md:hidden absolute inset-0 bg-gray-900 bg-opacity-95 flex flex-col z-10" v-if="showChat"
+            :player-name="username" :messages="chatMessages" @send-message="sendChatMessage" @toggle="showChat = false"
+            :users="WSState.clients.length" />
+        <!-- <div v-if="showChat" class="lg:hidden block absolute top-0 right-0 w-1/3 h-[400px] lg:h-auto">
             <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden h-full flex flex-col">
                 <div class="flex items-center justify-between p-3 bg-gray-700">
                     <div class="flex items-center">
@@ -431,14 +435,14 @@ const playerName = computed(() => {
                 <ChatComponent :player-name="username" :room-id="route.params.room as string" :messages="chatMessages"
                     @send-message="sendChatMessage" />
             </div>
-        </div>
-        <FloatingChatButton @toggle="toggleChat" />
+        </div> -->
+        <FloatingChatButton v-if="!showChat" @toggle="toggleChat" />
 
     </main>
-    <Transition name="slide-up">
+    <!-- <Transition name="slide-up">
         <div v-if="showChat" class="absolute inset-0 bg-gray-900 bg-opacity-95 flex flex-col z-10">
-            <!-- <div class="bg-gray-800 rounded-t-lg shadow-lg overflow-hidden flex-grow flex flex-col">
-            </div> -->
+            <div class="bg-gray-800 rounded-t-lg shadow-lg overflow-hidden flex-grow flex flex-col">
+            </div>
             <div class="bg-gray-800 p-4 flex justify-between items-center">
                 <div class="flex items-center">
                     <MessageSquare class="w-5 h-5 text-blue-400 mr-2" />
@@ -451,7 +455,7 @@ const playerName = computed(() => {
             <ChatComponent :player-name="username" :room-id="route.params.room as string" :messages="chatMessages"
                 @send-message="sendChatMessage" />
         </div>
-    </Transition>
+    </Transition> -->
 </template>
 
 <style scoped>

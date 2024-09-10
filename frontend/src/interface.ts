@@ -23,6 +23,7 @@ type Action =
   | 'game-status'
   | 'start-game'
   | 'send-message'
+  | 'create-room'
   | 'join-room'
   | 'leave-room'
   | 'send-game'

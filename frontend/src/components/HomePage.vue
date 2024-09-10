@@ -4,8 +4,8 @@ import { websocket } from '@/lib/socket'
 import router from '@/router'
 import { useWebSocket } from '@vueuse/core'
 import { InfoIcon } from 'lucide-vue-next'
-import { onMounted, ref, watch, watchEffect } from 'vue'
-import HelpModal from './modal/HelpModal.vue'
+import { defineAsyncComponent, onMounted, ref, watch, watchEffect } from 'vue'
+const HelpModal = defineAsyncComponent(() => import('./modal/HelpModal.vue'))
 
 const roomId = ref('')
 const playerName = ref('')
@@ -21,7 +21,7 @@ onMounted(() => {
 const { data, send } = useWebSocket(websocket.url, {
   onMessage(ws, event) {
     handleMessage(event)
-  }, autoReconnect: true
+  }, autoReconnect: true, immediate: true
 })
 
 watch(playerName, () => {
@@ -32,7 +32,8 @@ watchEffect(() => {
 })
 
 function createRoom() {
-  const data = { action: 'join-room', message: null, sender: { name: playerName.value } }
+  // const data = { action: 'join-room', message: null, sender: { name: playerName.value } }
+  const data = { action: 'create-room', message: null, sender: { name: playerName.value } }
   console.log(data, "createRoom data");
 
   send(JSON.stringify(data))
@@ -45,6 +46,12 @@ function handleMessage(event: MessageEvent) {
   const data: WSMessage = JSON.parse(event.data)
   switch (data.action) {
     case 'join-room':
+      console.log(data)
+      console.log("Did this run")
+      router.push({ name: "room", params: { room: data.message } })
+      // router.push(data.message)
+      break
+    case 'create-room':
       console.log(data)
       console.log("Did this run")
       router.push({ name: "room", params: { room: data.message } })
@@ -158,7 +165,7 @@ const showSettings = () => {
             </button>
           </div>
 
-          <div v-else>
+          <form v-else @submit.prevent="createRoom">
             <div class="mb-4">
               <label class="block text-sm font-medium text-gray-200 mb-2" for="create-player-name">
                 Your Name
@@ -167,11 +174,11 @@ const showSettings = () => {
                 class="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 transition duration-200"
                 id="create-player-name" placeholder="Enter your name" type="text" />
             </div>
-            <button @click="createRoom"
+            <button type="submit"
               class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200 ease-in-out">
               Create New Game
             </button>
-          </div>
+          </form>
         </div>
 
         <!-- <div class="mt-8 flex justify-center space-x-4">

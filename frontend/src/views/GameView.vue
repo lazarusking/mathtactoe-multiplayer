@@ -7,6 +7,10 @@ import { websocket } from '@/lib/socket'
 import { useWebSocket } from '@vueuse/core'
 import { computed, onUnmounted, reactive, ref, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
+
+const loaders = Object.values(import.meta.glob('@assets/loaders/*.{png,jpg,jpeg,PNG,JPEG,gif}'))
+const randomGallery = loaders[Math.floor(Math.random() * loaders.length)]
+
 const route = useRoute()
 const username = ref('')
 const chatMessages = ref<{ sender: string, text: string }[]>([])
@@ -210,7 +214,7 @@ watchEffect(() => {
 
 onUnmounted(() => {
     console.log("leaving room");
-    WSState.clients.splice(gameState.currentPlayer, 1)
+    // WSState.clients.splice(gameState.currentPlayer, 1)
     console.log(WSState.clients);
 
     send(JSON.stringify({ action: "leave-room", message: route.params.room }))
@@ -220,9 +224,11 @@ onUnmounted(() => {
 
 function handleMessage(event: MessageEvent<string>) {
     const data = event.data.split(/\r?\n/)
-    console.log(data);
+    // console.log(data);
     for (let i = 0; i < data.length; i++) {
         const WSMessage: WSMessage = JSON.parse(data[i])
+        console.log(WSMessage);
+
         let message; // Move the declaration here
         switch (WSMessage.action) {
             case 'start-game': {
@@ -346,7 +352,7 @@ const playerName = computed(() => {
 
 </script>
 <template>
-    <div v-if="WSState.clients.length < 1" aria-modal="true"
+    <!-- <div v-if="WSState.clients.length < 2" aria-modal="true"
         class="fixed inset-0 z-10 flex items-center justify-center text-gray-500 bg-black bg-opacity-50" role="dialog">
         <div class="max-w-md px-4 py-8 mx-auto space-y-2 text-center text-white rounded-lg sm:px-6 lg:px-8">
             <p class="text-3xl font-bold"> Waiting for an opponent... </p>
@@ -362,7 +368,8 @@ const playerName = computed(() => {
             </button>
         </div>
 
-    </div>
+    </div> -->
+
     <Transition>
         <div v-if="gameState.toastMsg"
             class="transition ease-in-out fixed inset-0 z-10 flex items-center justify-center text-gray-500 bg-opacity-50">
@@ -372,8 +379,10 @@ const playerName = computed(() => {
             </div>
         </div>
     </Transition>
+    <!-- <ChatComponent /> -->
     <!-- <main :class="{ 'blur': players.length < 2 }" -->
-    <main class="relative container flex flex-col items-center justify-center h-screen px-4 py-12 mx-auto">
+    <main class="relative container flex flex-col items-center justify-center h-screen px-4 py-12 mx-auto"
+        :class="WSState.clients.length < 2 && 'inset-0 z-10 flex items-center justify-center text-gray-500 bg-opacity-50'">
         <h2 v-if="players.length >= 2" class="px-4 py-2 mb-4 text-2xl font-bold text-center text-white"
             :class="[isSpectator ? 'bg-gray-500' : (isCurrentPlayer ? 'bg-green-700' : 'bg-red-700')]">
             {{
@@ -381,23 +390,69 @@ const playerName = computed(() => {
             }}</h2>
         <!-- <button @click="randPlay">Play</button> -->
 
-        <section aria-label="tictac grid buttons"
-            class="grid w-full max-w-md grid-cols-3 grid-rows-3 gap-4 shadow-md h-3/5" :class="isPlayingClasses">
-            <button aria-label="tictac button" @click="gameState.selectGrid(y)" type="button"
-                :class="{ 'ring ring-offset-2 ring-offset-slate-800 ring-blue-700': gameState.selectedGrid.id === y.id }"
-                class="grid items-center justify-center w-auto h-auto p-8 text-4xl font-black text-white transition-colors bg-gray-600 rounded-lg shadow-md place-content-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none hover:bg-slate-700"
-                v-for="y in tictacGrid" :key="y.id" :id="y.id.toString()">
-                {{ y.number }}
+        <h2 v-if="WSState.clients.length < 2" class="relative space-y-2 text-center mb-8 animate-pulse">
+            <p class="text-2xl font-bold mb-2">Waiting for an opponent...</p>
+            <button name="share" @click="shareRoom"
+                class="flex px-4 py-2 mx-auto text-white bg-purple-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 ">
+                <svg class="w-5 h-6 mr-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z">
+                    </path>
+                </svg>
+                <span>Share</span>
             </button>
-        </section>
-        <section aria-label="game-buttons"
-            class="w-full max-w-md h-1/4 grid grid-flow-col grid-cols-[repeat(auto-fit,_minmax(0,_1fr))] gap-2 font-black text-3xl shadow-md rounded-sm p-2 m-1">
-            <button @click="gameState.placeNumber(i)" :value="i.id" v-for="i in gameState.players[WSState.clientID]"
-                :key="i.id" type="button"
-                class="inline-flex items-center justify-center w-full h-auto max-w-md p-2 mt-8 text-2xl font-bold text-white bg-gray-700 rounded-md md:h-10 hover:bg-slate-800 md:p-10">
-                {{ i.number }}
-            </button>
-        </section>
+            <!-- <div
+                class="inline-block w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin">
+            </div> -->
+
+            <img :src="randomGallery.name" alt="Loading" className="mx-auto max-w-xs rounded-lg shadow-lg" />
+
+        </h2>
+        <template v-else>
+            <!-- <div class=""> -->
+            <section aria-label="tictac grid buttons"
+                class="w-full max-w-md aspect-square p-1 bg-gradient-to-br from-blue-500 via-violet-500 to-pink-500 rounded-lg shadow-lg"
+                :class="isPlayingClasses">
+                <div class="grid grid-cols-3 w-full h-full p-0.5 rounded-lg overflow-hidden">
+                    <button aria-label="tictac button" v-for="y in tictacGrid" :key="y.id" :id="y.id.toString()"
+                        @click="gameState.selectGrid(y)" type="button" class="w-full h-full bg-gray-900 flex items-center justify-center text-4xl font-bold
+                        focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all
+                        duration-200 border-purple-500 border-4 border-gradient"
+                        :class="{ 'bg-transparent ': gameState.selectedGrid.id === y.id }">
+                        {{ y.number }}
+                        <!-- <span :class="{ 'text-blue-400': y.number === 'X', 'text-purple-400': y.number === 'O' }">
+                        </span> -->
+                    </button>
+                </div>
+            </section>
+            <section aria-label="game-buttons" class="mt-6 flex justify-center space-x-4">
+                <button @click="gameState.placeNumber(i)" :value="i.id" v-for="i in gameState.players[WSState.clientID]"
+                    :key="i.id" type="button"
+                    class="button-gradient p-10 w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-lg transition-all duration-200 hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900">
+                    {{ i.number }}
+                </button>
+            </section>
+            <!-- <section aria-label="tictac grid buttons"
+                class="grid w-full max-w-md grid-cols-3 grid-rows-3 gap-4 shadow-md h-3/5" :class="isPlayingClasses">
+                <button aria-label="tictac button" @click="gameState.selectGrid(y)" type="button"
+                    :class="{ 'ring ring-offset-2 ring-offset-slate-800 ring-blue-700': gameState.selectedGrid.id === y.id }"
+                    class="grid items-center justify-center w-auto h-auto p-8 text-4xl font-black text-white transition-colors bg-gray-600 rounded-lg shadow-md place-content-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none hover:bg-slate-700"
+                    v-for="y in tictacGrid" :key="y.id" :id="y.id.toString()">
+                    {{ y.number }}
+                </button>
+            </section> -->
+            <!-- <section aria-label="game-buttons"
+                class="w-full max-w-md h-1/4 grid grid-flow-col grid-cols-[repeat(auto-fit,_minmax(0,_1fr))] gap-2 font-black text-3xl shadow-md rounded-sm p-2 m-1">
+                <button @click="gameState.placeNumber(i)" :value="i.id" v-for="i in gameState.players[WSState.clientID]"
+                    :key="i.id" type="button"
+                    class="inline-flex items-center justify-center w-full h-auto max-w-md p-2 mt-8 text-2xl font-bold text-white bg-gray-700 rounded-md md:h-10 hover:bg-slate-800 md:p-10">
+                    {{ i.number }}
+                </button>
+            </section> -->
+            <!-- </div> -->
+        </template>
+
         <GameWinModal :game-status="gameState.gameStatus" @play-again="playAgain" />
         <!-- <div v-if="showChat" class="lg:w-1/3 h-[400px] lg:h-auto">
             <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden h-full flex flex-col">
@@ -415,10 +470,12 @@ const playerName = computed(() => {
             </div>
         </div> -->
 
-        <Chat class="hidden md:block w-80" v-if="showChat" :player-name="username" :messages="chatMessages"
-            @send-message="sendChatMessage" @toggle="showChat = false" :users="WSState.clients.length" />
+        <Chat class="fixed right-0 top-0 bottom-0 hidden md:flex w-80" v-if="showChat" :player-name="username"
+            :messages="chatMessages" @send-message="sendChatMessage" @toggle="showChat = false"
+            :users="WSState.clients.length" />
 
-        <Chat class="md:hidden absolute inset-0 bg-gray-900 bg-opacity-95 flex flex-col z-10" v-if="showChat"
+        <!-- mobile size -->
+        <Chat class="inset-0 md:hidden block absolute bg-gray-900 bg-opacity-95 z-10" v-if="showChat"
             :player-name="username" :messages="chatMessages" @send-message="sendChatMessage" @toggle="showChat = false"
             :users="WSState.clients.length" />
         <!-- <div v-if="showChat" class="lg:hidden block absolute top-0 right-0 w-1/3 h-[400px] lg:h-auto">
@@ -459,6 +516,15 @@ const playerName = computed(() => {
 </template>
 
 <style scoped>
+.border-gradient {
+    border-image: linear-gradient(to bottom right, #3b82f6, #a855f7, #ec4899) 1;
+    /* border-image: linear-gradient(to bottom right, theme( gradientColorStops.pink.500)) 1; */
+}
+
+.button-gradient {
+    background-image: linear-gradient(60deg, #29323c 0%, #485563 100%);
+}
+
 .v-enter-from,
 .v-leave-to {
     opacity: .2;

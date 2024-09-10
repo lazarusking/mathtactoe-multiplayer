@@ -1,85 +1,97 @@
-<script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import { Send } from 'lucide-vue-next';
-
-const props = defineProps<{
-  playerName: string;
-  roomId: string;
-  messages: { sender: string; text: string }[];
-}>();
-
-const emit = defineEmits<{
-  (e: 'sendMessage', message: string): void;
-}>();
-
-const newMessage = ref('');
-const chatContainer = ref<HTMLDivElement | null>(null);
-
-
-const sendMessage = () => {
-  if (newMessage.value.trim()) {
-    emit('sendMessage', newMessage.value);
-    newMessage.value = '';
-  }
-};
-
-const scrollToBottom = () => {
-  if (chatContainer.value) {
-    chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-  }
-};
-
-const systemMessageMap = ref<Map<string, boolean>>(new Map());
-
-const filteredMessages = computed(() => {
-  const messages = props.messages.filter(message => {
-    if (message.sender === 'system') {
-      if (systemMessageMap.value.has(message.text)) {
-        return false; // Skip duplicate system message
-      } else {
-        systemMessageMap.value.set(message.text, true); // Store new system message
-      }
-    }
-    return true; // Include all non-system messages and unique system messages
-  });
-  return messages;
-});
-
-watch(() => props.messages, scrollToBottom, { deep: true });
-
-</script>
-
 <template>
-  <div class="flex flex-col h-full">
-    <div ref="chatContainer" class="flex-grow overflow-y-auto p-3 space-y-2">
-      <div v-for="(message, index) in messages" :key="index" :class="['p-2 rounded-lg',
-        message.sender === 'system' ? '' : (message.sender === playerName ? 'bg-blue-600 ml-auto' : 'bg-gray-700'),
-        // message.sender === playerName ? 'bg-blue-600 ml-auto' : 'bg-gray-700',
-        'max-w-[80%]']">
-        <!-- <p class="rounded-lg">
-          :class="['p-2 rounded-lg',
-        message.sender === playerName ? 'bg-blue-600 ml-auto' : 'bg-gray-700',
-        'max-w-[80%]']"
-        </p> -->
-        <p v-if="message.sender === 'system'"
-          class="flex items-center text-sm text-gray-800 before:flex-1 before:border-t before:border-gray-200 before:me-6 after:flex-1 after:border-t after:border-gray-200 after:ms-6 dark:text-white dark:before:border-neutral-600 dark:after:border-neutral-600">
-          {{ message.text }}</p>
-        <p v-else class="rounded-lg text-sm font-semibold"
-          :class="message.sender === playerName ? 'text-blue-200' : 'text-gray-300'">
-          {{ message.sender }}
-        </p>
-        <p class="text-white text-base">{{ message.text }}</p>
-      </div>
-    </div>
-    <div class="p-3 bg-gray-700">
-      <div class="flex">
-        <input v-model="newMessage" @keyup.enter="sendMessage" type="text" placeholder="Type a message..."
-          class="flex-grow bg-gray-600 text-white rounded-l-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <button @click="sendMessage"
-          class="bg-blue-600 text-white rounded-r-lg px-3 py-2 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <Send class="w-4 h-4" />
+  <div class="flex flex-col items-center justify-center min-h-screen bg-gray-900 p-4">
+    <div class="mb-4 text-2xl font-bold text-white">{{ status }}</div>
+    <div
+      class="w-full max-w-md aspect-square p-1 bg-gradient-to-br from-blue-500 via-violet-500 to-pink-500 rounded-lg shadow-lg">
+      <div class="grid grid-cols-3 w-full h-full p-0.5 rounded-lg overflow-hidden">
+        <button v-for="(value, index) in board" :key="index" @click="handleClick(index)"
+          class="w-full h-full bg-gray-900 flex items-center justify-center text-4xl font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all duration-200 border-purple-500 border-4 border-gradient iagonal-split">
+          <span :class="{ 'text-blue-400': value === 'X', 'text-purple-400': value === 'O' }">
+            {{ value }}
+          </span>
         </button>
       </div>
     </div>
+    <div class="mt-6 flex justify-center space-x-4">
+      <button v-for="num in [1, 3, 5, 7, 9]" :key="num"
+        class="button-gradient w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-lg transition-all duration-200 hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900">
+        {{ num }}
+      </button>
+    </div>
   </div>
 </template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+
+type CellValue = 'X' | 'O' | null
+
+const board = ref<CellValue[]>(['X', 'O', 'X', 'O', 'X', 'O', 'O', 'X', 'O'])
+const xIsNext = ref(true)
+
+const handleClick = (index: number) => {
+  if (board.value[index] || calculateWinner(board.value)) return
+
+  board.value[index] = xIsNext.value ? 'X' : 'O'
+  xIsNext.value = !xIsNext.value
+}
+
+const calculateWinner = (squares: CellValue[]): CellValue => {
+  const lines = [
+    [0, 1, 2],
+    [3, 4, 5],
+    [6, 7, 8],
+    [0, 3, 6],
+    [1, 4, 7],
+    [2, 5, 8],
+    [0, 4, 8],
+    [2, 4, 6],
+  ]
+  for (let i = 0; i < lines.length; i++) {
+    const [a, b, c] = lines[i]
+    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
+      return squares[a]
+    }
+  }
+  return null
+}
+
+const status = computed(() => {
+  const winner = calculateWinner(board.value)
+  if (winner) {
+    return `Winner: ${winner}`
+  } else if (board.value.every(Boolean)) {
+    return "It's a draw!"
+  } else {
+    return `Next player: ${xIsNext.value ? 'X' : 'O'}`
+  }
+})
+</script>
+
+<style scoped>
+.border-gradient {
+  border-image: linear-gradient(to bottom right, #3b82f6, #a855f7, #ec4899) 1;
+  /* border-image: linear-gradient(to bottom right, theme( gradientColorStops.pink.500)) 1; */
+}
+
+.button-gradient {
+  background-image: linear-gradient(60deg, #29323c 0%, #485563 100%);
+}
+
+/* .border-gradient {
+  border-image: linear-gradient(to bottom right, #3b82f6 50%, #a855f7 50%, #ec4899 50%) 1;
+  /* border-image: linear-gradient(to bottom right, theme( gradientColorStops.pink.500)) 1; */
+/* } */
+.diagonal-split {
+  background: linear-gradient(to bottom right, #3b82f6 50%, #a855f7 50%, #ec4899 50%) 1;
+}
+
+.cell:nth-child(-n+4) {
+  border-image: linear-gradient(to bottom right, #3b82f6 10%, #a855f7 40%, #ec4899 50%) 1;
+}
+
+/* 5th to 9th cells */
+.cell:nth-child(n+5) {
+  background-image: linear-gradient(to bottom right, #3b82f6 50%, #a855f7 40%, #ec4899 10%) 1;
+}
+</style>

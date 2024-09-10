@@ -76,7 +76,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="fixed right-0 top-0 bottom-0 bg-gray-900 text-white flex flex-col shadow-xl">
+  <div class="bg-gray-900 text-white flex flex-col shadow-xl">
     <!-- Chat Header -->
     <div class="p-4 border-b border-gray-800 flex items-center justify-between">
       <h2 class="text-lg font-semibold">Chat</h2>

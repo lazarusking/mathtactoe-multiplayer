@@ -4,7 +4,9 @@ import { onMounted, onUnmounted, ref } from 'vue';
 defineEmits<{
   (e: 'toggle'): void;
 }>();
-const buttonPosition = ref({ x: 0, y: 0 })
+let windowWidth = ref(window.innerWidth)
+let windowHeight = ref(window.innerHeight)
+const buttonPosition = ref({ x: windowWidth.value - 20, y: windowHeight.value - 20 })
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 const savePosition = () => {
@@ -79,16 +81,15 @@ const el = ref<HTMLElement | null>(null)
 //   initialValue: { x: 100, y: 100 },
 // })
 // console.log(style.value, position.value)
+
 </script>
 <!-- class="bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"> -->
 
 <template>
-  <button ref="el" @click="$emit('toggle')" :style="{
-    // position: 'absolute',
-    left: `${buttonPosition.x}px`,
-    top: `${buttonPosition.y}px`,
-    touchAction: 'none'
-  }" style="touch-action: none;" @touchstart.capture="startDrag" @mousedown.capture="startDrag"
+  <button aria-label="floating chat button" ref="el" @click="$emit('toggle')" :style="buttonPosition.x !== 0 && buttonPosition.y !== 0
+    ? { left: `${buttonPosition.x - 100}px`, top: `${buttonPosition.y - 100}px`, position: 'fixed', touchAction: 'none' }
+    : { right: `${buttonPosition.x}px`, top: `${buttonPosition.y}px`, position: 'fixed' }"
+    @touchstart.capture="startDrag" @mousedown.capture="startDrag"
     class="fixed md:hidden block bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 outline-none">
     <MessageSquare class="w-6 h-6" />
   </button>

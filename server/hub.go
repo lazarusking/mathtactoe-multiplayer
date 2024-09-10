@@ -56,6 +56,16 @@ func (hub *Hub) createRoom(id string) *Room {
 	hub.rooms[room] = true
 	return room
 }
+func (h *Hub) deleteRoom(roomID string) {
+	room := h.findRoomByID(roomID)
+	if room != nil {
+		// close(room.register)
+		// close(room.unregister)
+		delete(h.rooms, room)
+		log.Printf("Room %s has been deleted", roomID)
+
+	}
+}
 func (hub *Hub) findRoomByID(id string) *Room {
 	var foundRoom *Room
 	for room := range hub.rooms {

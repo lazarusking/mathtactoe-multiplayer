@@ -8,7 +8,7 @@ import { useWebSocket } from '@vueuse/core'
 import { computed, onUnmounted, reactive, ref, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 
-const loaders = Object.values(import.meta.glob('@assets/loaders/*.{png,jpg,jpeg,PNG,JPEG,gif}', { eager: true, as: 'url' }))
+const loaders = Object.values(import.meta.glob('@assets/loaders/*.{png,jpg,jpeg,PNG,JPEG,gif,webp}', { eager: true, as: 'url' }))
 
 const randomGallery = loaders[Math.floor(Math.random() * loaders.length)]
 
@@ -430,7 +430,7 @@ const playerName = computed(() => {
             <section aria-label="game-buttons" class="mt-6 flex justify-center space-x-4">
                 <button @click="gameState.placeNumber(i)" :value="i.id" v-for="i in gameState.players[WSState.clientID]"
                     :key="i.id" type="button"
-                    class="button-gradient p-10 w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-lg transition-all duration-200 hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900">
+                    class="button-gradient w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-lg transition-all duration-200 hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900">
                     {{ i.number }}
                 </button>
             </section>

@@ -88,7 +88,9 @@ func (room *Room) RunRoom() {
 			room.notifyClientJoined(client)
 			room.clients[client] = true
 			log.Printf("%v size", room.GetRoomSize())
-			room.game.Clients = append(room.game.Clients, client)
+			if !client.isInRoom(room) {
+				room.game.Clients = append(room.game.Clients, client)
+			}
 			if room.GetRoomSize() == 2 {
 				for client := range room.clients {
 					if _, exists := room.clients[client]; exists {

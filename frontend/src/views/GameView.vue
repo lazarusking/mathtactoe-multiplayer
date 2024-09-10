@@ -8,7 +8,8 @@ import { useWebSocket } from '@vueuse/core'
 import { computed, onUnmounted, reactive, ref, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 
-const loaders = Object.values(import.meta.glob('@assets/loaders/*.{png,jpg,jpeg,PNG,JPEG,gif}'))
+const loaders = Object.values(import.meta.glob('@assets/loaders/*.{png,jpg,jpeg,PNG,JPEG,gif}', { eager: true, as: 'url' }))
+
 const randomGallery = loaders[Math.floor(Math.random() * loaders.length)]
 
 const route = useRoute()
@@ -406,7 +407,7 @@ const playerName = computed(() => {
                 class="inline-block w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin">
             </div> -->
 
-            <img :src="randomGallery.name" alt="Loading" className="mx-auto max-w-xs rounded-lg shadow-lg" />
+            <img :src="randomGallery" alt="Loading" className="mx-auto max-w-xs rounded-lg shadow-lg" />
 
         </h2>
         <template v-else>

@@ -17,6 +17,7 @@ type Room struct {
 	register      chan *Client
 	unregister    chan *Client
 	game          GameState
+	done          chan bool // Stop signal channel
 }
 
 func NewRoom(id string) *Room {
@@ -42,6 +43,13 @@ func (room *Room) GetRoomSize() int {
 func (room *Room) RunRoom() {
 	for {
 		select {
+		case <-room.done: // Stop the room gracefully
+			log.Printf("Stopping room %s", room.ID)
+			close(room.register)
+			close(room.unregister)
+			close(room.broadcast) // Clean up the room
+			return                // Exit the loop
+
 		case message := <-room.gamebroadcast:
 			// game, _ := json.Marshal(room.game)
 			log.Println("Game Broadcast")
@@ -65,6 +73,10 @@ func (room *Room) RunRoom() {
 			}
 
 		case client := <-room.register:
+			// for room, ok := range client.hub.rooms {
+			// 	log.Println("Room ID", room.ID, ok)
+			// }
+
 			log.Println("Client Register")
 			log.Println(room.GetRoomSize(), len(room.game.Clients), len(room.game.Players))
 			// if len(room.game.Clients) >= 2 || room.GetRoomSize() >= 2 {
@@ -82,6 +94,7 @@ func (room *Room) RunRoom() {
 					if _, exists := room.clients[client]; exists {
 						a := room.game.Options[room.game.CurrentPlayer]
 						log.Println("current Player:", room.game.CurrentPlayer)
+						room.game.Clients = append(room.game.Clients, client)
 						room.game.Players[client.ID] = a
 						room.game.switchPlayer()
 					}
@@ -240,6 +253,10 @@ func (room *Room) broadcastGameStateToClients() {
 }
 
 func (room *Room) notifyClientJoined(client *Client) {
+	if client == nil {
+		log.Println("Error: client is nil in notifyClientJoined")
+		return
+	}
 	clientName := client.Name
 	if clientName == "" {
 		clientName = client.GetID()

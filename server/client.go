@@ -16,17 +16,10 @@ var (
 )
 
 const (
-	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 512
+	writeWait      = 10 * time.Second    // Time allowed to write a message to the peer.
+	pongWait       = 60 * time.Second    // Time allowed to read the next pong message from the peer.
+	pingPeriod     = (pongWait * 9) / 10 // Send pings to peer with this period. Must be less than pongWait.
+	maxMessageSize = 512                 // Maximum message size allowed from peer.
 )
 
 // Client represents a connected WebSocket client.
@@ -35,138 +28,153 @@ type Client struct {
 	rooms map[*Room]bool
 	conn  *websocket.Conn
 	send  chan []byte // Buffered channel of outbound messages.
-	// Add any client-specific properties here
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+	ID    uuid.UUID   `json:"id"`
+	Name  string      `json:"name"`
 }
 
+func (client *Client) GetID() string {
+	return client.ID.String()
+}
+
+// handleNewMessage processes incoming messages and performs the appropriate actions based on the message's action.
 func (client *Client) handleNewMessage(jsonMessage []byte) {
-	//client started actions
 	var message Message
 	if err := json.Unmarshal(jsonMessage, &message); err != nil {
 		log.Printf("Error on unmarshal message %s", err)
 		return
 	}
-	log.Printf("Handling Message: %v........Client:%s", message.Action, client.ID)
 
+	log.Printf("Handling Message: %v........Client:%s", message.Action, client.ID)
 	if message.Sender != nil {
 		client.Name = message.Sender.Name
 		log.Printf("Sender is %s", client.Name)
 	} else {
 		log.Printf("Sender is nil in the received message")
 	}
+
 	message.Sender = client
 	switch message.Action {
 	case SendMessageAction:
-		log.Printf("30%v", message.Target)
-		roomId := message.Target.GetId()
-		if room := client.hub.findRoomByID(roomId); room != nil {
-			room.broadcast <- &message
-		}
+		client.sendMessage(message)
 	case SendGameAction:
-		log.Printf("30: %v", message.Target.ID)
-		roomId := message.Target.GetId()
-		if room := client.hub.findRoomByID(roomId); room != nil {
-			room.gamebroadcast <- &message
-		}
-
+		client.sendGameAction(message)
+	case CreateRoomAction:
+		client.createAndNotifyRoom()
 	case JoinRoomAction:
-		roomId := message.Message
-		// sender := message.Sender
-		// log.Printf("Sender JoinRoomAction: %+v\n Name: %s", message.Sender, message.Sender.Name)
-		// log.Printf("handleNewMessage Sender: %s", message.Sender.Name)
-		client.joinRoom(roomId)
+		client.joinRoom(message.Message)
 	case LeaveRoomAction:
-		roomId := message.Message
-		room := client.hub.findRoomByID(roomId)
-		if room == nil {
-			return
-		}
-		log.Println("leaving room:", roomId)
-		room.unregister <- client
-
+		client.leaveRoom(message.Message)
 	case StartGameAction:
-		//for starting a new match after win/draw/loss
-		roomId := message.Target.GetId()
-		if room := client.hub.findRoomByID(roomId); room != nil {
-			room.startGame(client)
-		}
+		client.startGame(message)
 	default:
 		break
 	}
 }
 
-func (client *Client) GetID() string {
-	return client.ID.String()
+func (client *Client) sendMessage(message Message) {
+	roomId := message.Target.GetId()
+	if room := client.hub.findRoomByID(roomId); room != nil {
+		room.broadcast <- &message
+	}
 }
-func (client *Client) joinRoom(roomId string) *Room {
-	// var room *Room
+
+func (client *Client) sendGameAction(message Message) {
+	roomId := message.Target.GetId()
+	if room := client.hub.findRoomByID(roomId); room != nil {
+		room.gamebroadcast <- &message
+	}
+}
+
+func (client *Client) createAndNotifyRoom() {
+	room := client.createRoom()
+	message := &Message{
+		Action:  CreateRoomAction,
+		Message: room.ID,
+		Sender:  client,
+	}
+	client.send <- message.encode()
+}
+
+func (client *Client) leaveRoom(roomId string) {
 	room := client.hub.findRoomByID(roomId)
-	// if id, err := uuid.Parse(roomId); id == uuid.Nil && err != nil {
-	// 	log.Println("tis nil", id, err)
-	// 	room = client.hub.createRoom(uuid.NewString())
-	// }
+	if room == nil {
+		return
+	}
+	log.Println("Leaving room:", roomId)
+	room.unregister <- client
+}
+
+func (client *Client) startGame(message Message) {
+	roomId := message.Target.GetId()
+	if room := client.hub.findRoomByID(roomId); room != nil {
+		room.startGame(client)
+	}
+}
+
+func (client *Client) createRoom() *Room {
+	roomId := uuid.NewString()            // Generate a new room ID
+	room := client.hub.createRoom(roomId) // Create the room
+	log.Printf("Room created: %s by client %s", room.ID, client.ID)
+	return room
+}
+
+func (client *Client) joinRoom(roomId string) *Room {
+	room := client.hub.findRoomByID(roomId)
 	if roomId == "" {
 		room = client.hub.createRoom(uuid.NewString())
 	}
 	if room == nil {
-		// log.Println(room)
 		room = client.hub.createRoom(roomId)
 	}
-	// if _, ok := client.rooms[room]; !ok {
-	// 	client.rooms[room] = true
-	// 	room.register <- client
-	// 	client.notifyRoomJoined(room)
-	// }
 	if !client.isInRoom(room) {
-
 		client.rooms[room] = true
 		room.register <- client
-
 		client.notifyRoomJoined(room)
 	}
 	return room
 }
-func (client *Client) isInRoom(room *Room) bool {
-	if _, ok := client.rooms[room]; ok {
-		return true
-	}
 
-	return false
+func (client *Client) isInRoom(room *Room) bool {
+	_, ok := client.rooms[room]
+	return ok
 }
+
 func (client *Client) notifyRoomJoined(room *Room) {
 	log.Printf("Client: %s,%s joined room: %s", client.ID, client.Name, room.ID)
-	//todo must join room once, this joins a room again and ignores client name passed
 	message := &Message{
 		Action:  JoinRoomAction,
 		Message: room.ID,
-		// Message: fmt.Sprintf("Client: %s,%s joined room: %s", client.ID, client.Name, room.ID),
-		Target: room,
-		Sender: client}
+		Target:  room,
+		Sender:  client,
+	}
 	client.send <- message.encode()
-
 }
+
 func (client *Client) disconnect() {
-	client.hub.unregister <- client //unregister client from hub and rooms
+	client.hub.unregister <- client // Unregister client from hub and rooms
 	for room := range client.rooms {
 		room.unregister <- client
+		if len(room.clients) == 0 {
+			client.hub.deleteRoom(room.ID)
+			room.done <- true
+			log.Printf("Room %s has been deleted due to no active clients", room.ID)
+		}
 	}
 	close(client.send)
 	client.conn.Close()
 }
 
 // listen handles incoming messages from a client.
-func (c *Client) listen() {
-	defer func() {
-		// c.hub.unregister <- c // Send the client to be unregistered
-		// c.conn.Close()
-		c.disconnect()
-	}()
-	c.conn.SetReadLimit(maxMessageSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+func (client *Client) listen() {
+	defer client.disconnect()
+	client.conn.SetReadLimit(maxMessageSize)
+	client.conn.SetReadDeadline(time.Now().Add(pongWait))
+	client.conn.SetPongHandler(func(string) error {
+		client.conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
 	for {
-		_, messageContent, err := c.conn.ReadMessage()
+		_, messageContent, err := client.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
@@ -174,47 +182,43 @@ func (c *Client) listen() {
 			break
 		}
 		messageContent = bytes.TrimSpace(bytes.Replace(messageContent, newline, space, -1))
-		c.handleNewMessage(messageContent)
+		client.handleNewMessage(messageContent)
 	}
 }
 
-// send messages to the client.
-func (c *Client) write() {
+// write sends messages to the client.
+func (client *Client) write() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
-		c.conn.Close()
+		client.conn.Close()
 		ticker.Stop()
 	}()
 
 	for {
 		select {
-		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+		case message, ok := <-client.send:
+			client.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// The hub closed the channel.
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				client.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-
-			w, err := c.conn.NextWriter(websocket.TextMessage)
+			w, err := client.conn.NextWriter(websocket.TextMessage)
 			if err != nil {
 				return
 			}
 			w.Write(message)
-
 			// Add queued chat messages to the current websocket message.
-			n := len(c.send)
+			n := len(client.send)
 			for i := 0; i < n; i++ {
 				w.Write(newline)
-				w.Write(<-c.send)
+				w.Write(<-client.send)
 			}
-
 			if err := w.Close(); err != nil {
 				return
 			}
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			client.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := client.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
 		}

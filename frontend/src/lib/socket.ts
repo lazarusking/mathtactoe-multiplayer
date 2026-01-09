@@ -9,8 +9,8 @@ let serverUrl
 if (import.meta.env.MODE === 'development') {
   serverUrl = `${scheme}://${location.hostname}:8080`
 } else {
-  // serverUrl = `wss://mathtactoe-multiplayer.onrender.com`
-  serverUrl = `wss://mathtactoe-multiplayer-production.up.railway.app/`
+  //serverUrl = `wss://mathtactoe-multiplayer-production.up.railway.app/`
+  serverUrl = import.meta.env.VITE_WS_URL
 }
 export const websocket = new WebSocket(serverUrl)
 // export const websocket = new WebSocket('ws://localhost:8080/')

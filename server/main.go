@@ -1,13 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"math"
-	"math/rand"
 	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -51,6 +47,10 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+var (
+	logger = log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)
+)
+
 func main() {
 	hub := NewHub()                //decl of hub
 	go hub.monitorClientsChannel() // Start a goroutine for receiving channel messages
@@ -65,113 +65,5 @@ func envPortOr(port string) string {
 		return ":" + envPort
 	}
 	// Otherwise, return the value of `port` variable from function argument
-	return ":" + port
-}
-
-type Player struct {
-	ID     uint8 `json:"id"`
-	Number uint8 `json:"number"`
-}
-type GameStatus struct {
-	GameWon  bool `json:"gameWon"`
-	GameOver bool `json:"gameOver"`
-	GameDraw bool `json:"gameDraw"`
-}
-type GameState struct {
-	CurrentPlayer uint8                  `json:"currentPlayer"`
-	Players       map[uuid.UUID][]Player `json:"players"`
-	Options       [][]Player             `json:"options"`
-	Clients       []*Client              `json:"clients"`
-	GameStatus    GameStatus             `json:"gameStatus"`
-}
-
-func (game *GameState) switchPlayer() {
-	x := (game.CurrentPlayer + 1) % 2
-	game.CurrentPlayer = x
-}
-
-//	func (game *GameState) reset() {
-//		game = &GameState{
-//			CurrentPlayer: 0,
-//			Players:       map[uuid.UUID][]Player{},
-//			Options:       [][]Player{},
-//			Clients:       []*Client{},
-//			GameStatus: GameStatus{
-//				GameWon:  false,
-//				GameOver: false,
-//				GameDraw: false,
-//			},
-//		}
-//	}
-func NewGame() *GameState {
-	return &GameState{
-		CurrentPlayer: uint8(rand.Intn(2)),
-		Players:       map[uuid.UUID][]Player{},
-		Options:       [][]Player{playerOne, playerTwo},
-		Clients:       []*Client{},
-		GameStatus: GameStatus{
-			GameWon:  false,
-			GameOver: false,
-			GameDraw: false,
-		},
-	}
-}
-
-var playerOne = []Player{
-	{ID: 1, Number: 1},
-	{ID: 2, Number: 3},
-	{ID: 3, Number: 5},
-	{ID: 4, Number: 7},
-	{ID: 5, Number: 9},
-}
-var playerTwo = []Player{
-	{ID: 1, Number: 0},
-	{ID: 2, Number: 2},
-	{ID: 3, Number: 4},
-	{ID: 4, Number: 6},
-	{ID: 5, Number: 8},
-}
-
-type Detail struct {
-	Number string `json:"number"`
-	ID     int    `json:"id"`
-}
-
-func calculateWinner(squares []Detail) (bool, bool) {
-	lines := [][]int{
-		{0, 1, 2},
-		{3, 4, 5},
-		{6, 7, 8},
-		{0, 3, 6},
-		{1, 4, 7},
-		{2, 5, 8},
-		{0, 4, 8},
-		{2, 4, 6},
-	}
-	draw := true
-	for i := 0; i < len(lines); i++ {
-		a, b, c := lines[i][0], lines[i][1], lines[i][2]
-		// log.Printf("%v:%v:%v", a, b, c)
-		for _, v := range []int{a, b, c} {
-			if squares[v].Number == "-" {
-				draw = false
-				break
-			}
-		}
-
-		sum := parseInt(squares[a].Number) + parseInt(squares[b].Number) + parseInt(squares[c].Number)
-		// fmt.Println("sum:", sum)
-		if sum == 15 {
-			fmt.Println(squares[a].Number, squares[b].Number, squares[c].Number)
-			return true, false
-		}
-	}
-	return false, draw
-}
-func parseInt(s string) int {
-	if s == "-" {
-		return math.MinInt
-	}
-	num, _ := strconv.Atoi(s)
-	return num
+	return "localhost:" + port
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,10 +27,19 @@ type Client struct {
 	rooms map[*Room]bool
 	conn  *websocket.Conn
 	send  chan []byte // Buffered channel of outbound messages.
+	IsBot bool        `json:"isBot"`
 	ID    uuid.UUID   `json:"id"`
 	Name  string      `json:"name"`
 }
 
+func NewBotClient(name string) *Client {
+	return &Client{
+		ID:    uuid.New(),
+		Name:  name,
+		IsBot: true,
+		send:  make(chan []byte, 256),
+	}
+}
 func (client *Client) GetID() string {
 	return client.ID.String()
 }
@@ -40,19 +48,20 @@ func (client *Client) GetID() string {
 func (client *Client) handleNewMessage(jsonMessage []byte) {
 	var message Message
 	if err := json.Unmarshal(jsonMessage, &message); err != nil {
-		log.Printf("Error on unmarshal message %s", err)
+		logger.Printf("Error on unmarshal message %s :%v -- %s %v", err, message.Action, message.Data, message.Sender)
+		logger.Panic(err)
 		return
 	}
 
-	log.Printf("Handling Message: %v........Client:%s", message.Action, client.ID)
+	logger.Printf("Handling Message: %v ---> Client:%s", message.Action, client.ID)
+	logger.Printf("Message Data: %+v", string(message.Data))
+	logger.Printf("Message Sender: %+v", message.Sender)
 	if message.Sender != nil {
 		client.Name = message.Sender.Name
-		log.Printf("Sender is %s", client.Name)
-	} else {
-		log.Printf("Sender is nil in the received message")
 	}
 
 	message.Sender = client
+	//not unmarshalling gave me a headache because of json.rawMessage and quote issues if I used string()
 	switch message.Action {
 	case SendMessageAction:
 		client.sendMessage(message)
@@ -61,36 +70,49 @@ func (client *Client) handleNewMessage(jsonMessage []byte) {
 	case CreateRoomAction:
 		client.createAndNotifyRoom()
 	case JoinRoomAction:
-		client.joinRoom(message.Message)
+		var roomId string
+		if err := json.Unmarshal(message.Data, &roomId); err != nil {
+			logger.Printf("Invalid join-room payload: %v", err)
+			return
+		}
+		client.joinRoom(roomId)
 	case LeaveRoomAction:
-		client.leaveRoom(message.Message)
+		var roomId string
+		if err := json.Unmarshal(message.Data, &roomId); err != nil {
+			logger.Printf("Invalid leave-room payload: %v", err)
+			return
+		}
+		client.leaveRoom(roomId)
 	case StartGameAction:
 		client.startGame(message)
 	default:
-		break
+		logger.Printf("Unknown action: %s", message.Action)
 	}
 }
 
 func (client *Client) sendMessage(message Message) {
 	roomId := message.Target.GetId()
 	if room := client.hub.findRoomByID(roomId); room != nil {
-		room.broadcast <- &message
+		room.events <- &message
+		logger.Println("Found room to send message", room.ID, message.Action)
 	}
 }
 
 func (client *Client) sendGameAction(message Message) {
 	roomId := message.Target.GetId()
 	if room := client.hub.findRoomByID(roomId); room != nil {
-		room.gamebroadcast <- &message
+		room.events <- &message
 	}
 }
 
 func (client *Client) createAndNotifyRoom() {
 	room := client.createRoom()
+	logger.Printf("Notifying client %s of created room %s", client.ID, room.ID)
+	roomId, _ := json.Marshal(room.ID)
 	message := &Message{
-		Action:  CreateRoomAction,
-		Message: room.ID,
-		Sender:  client,
+		Action: CreateRoomAction,
+		Data:   json.RawMessage(roomId),
+		Sender: client,
 	}
 	client.send <- message.encode()
 }
@@ -100,21 +122,22 @@ func (client *Client) leaveRoom(roomId string) {
 	if room == nil {
 		return
 	}
-	log.Println("Leaving room:", roomId)
+	logger.Println("Leaving room:", roomId)
 	room.unregister <- client
 }
 
 func (client *Client) startGame(message Message) {
 	roomId := message.Target.GetId()
 	if room := client.hub.findRoomByID(roomId); room != nil {
-		room.startGame(client)
+		logger.Printf("Client %s is starting game in room %s", client.ID, roomId)
+		room.startGame()
 	}
 }
 
 func (client *Client) createRoom() *Room {
 	roomId := uuid.NewString()            // Generate a new room ID
 	room := client.hub.createRoom(roomId) // Create the room
-	log.Printf("Room created: %s by client %s", room.ID, client.ID)
+	logger.Printf("Room created: %s by client %s", room.ID, client.ID)
 	return room
 }
 
@@ -140,25 +163,34 @@ func (client *Client) isInRoom(room *Room) bool {
 }
 
 func (client *Client) notifyRoomJoined(room *Room) {
-	log.Printf("Client: %s,%s joined room: %s", client.ID, client.Name, room.ID)
+	logger.Printf("Client: %s,%s joined room: %s", client.ID, client.Name, room.ID)
+	roomId, _ := json.Marshal(room.ID)
+
 	message := &Message{
-		Action:  JoinRoomAction,
-		Message: room.ID,
-		Target:  room,
-		Sender:  client,
+		Action: JoinRoomAction,
+		Data:   json.RawMessage(roomId),
+		Target: room,
+		Sender: client,
 	}
 	client.send <- message.encode()
 }
 
 func (client *Client) disconnect() {
 	client.hub.unregister <- client // Unregister client from hub and rooms
+	logger.Println("Disconnect run")
 	for room := range client.rooms {
 		room.unregister <- client
 		if len(room.clients) == 0 {
 			client.hub.deleteRoom(room.ID)
-			room.done <- true
-			log.Printf("Room %s has been deleted due to no active clients", room.ID)
+			// room.done <- true
+			close(room.done)
+			logger.Printf("Room %s has been deleted due to no active clients", room.ID)
 		}
+		logger.Printf("disconnect room logs %v", room.clients)
+		for c := range room.clients {
+			logger.Printf("room %s %s", c.Name, c.ID)
+		}
+
 	}
 	close(client.send)
 	client.conn.Close()
@@ -177,7 +209,7 @@ func (client *Client) listen() {
 		_, messageContent, err := client.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				logger.Printf("error: %v", err)
 			}
 			break
 		}

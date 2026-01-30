@@ -3,34 +3,39 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 )
 
-const SendMessageAction = "send-message"
-const SendGameAction = "send-game"
-const StartGameAction = "start-game"
-const UpdateStateAction = "update-game"
-const GameStatusAction = "game-status"
-const CreateRoomAction = "create-room"
-const JoinRoomAction = "join-room"
-const LeaveRoomAction = "leave-room"
-const UserJoinedAction = "user-join"
-const UserLeftAction = "user-left"
-const JoinRoomPrivateAction = "join-room-private"
-const RoomJoinedAction = "room-joined"
+type ActionType string // New custom type
+
+const (
+	SendMessageAction     ActionType = "send-message"
+	SendGameAction        ActionType = "send-game"
+	StartGameAction       ActionType = "start-game"
+	UpdateStateAction     ActionType = "update-game"
+	GameStatusAction      ActionType = "game-status"
+	CreateRoomAction      ActionType = "create-room"
+	JoinRoomAction        ActionType = "join-room"
+	LeaveRoomAction       ActionType = "leave-room"
+	UserJoinedAction      ActionType = "user-join"
+	UserLeftAction        ActionType = "user-left"
+	JoinRoomPrivateAction ActionType = "join-room-private"
+	RoomJoinedAction      ActionType = "room-joined"
+	GameStateSyncAction   ActionType = "state-sync"
+)
 
 type Message struct {
-	Action  string  `json:"action"`
-	Message string  `json:"message"`
-	Target  *Room   `json:"target"`
-	Sender  *Client `json:"sender"`
+	Action ActionType      `json:"action"`
+	Data   json.RawMessage `json:"data,omitempty"`
+	Target *Room           `json:"target,omitempty"`
+	Sender *Client         `json:"sender,omitempty"`
 }
 
 func (message *Message) encode() []byte {
 	// log.Println(121212)
 	json, err := json.Marshal(message)
 	if err != nil {
-		log.Println(err)
+		logger.Printf("Error marshaling message: %s %q-%s", message.Action, message.Data, err)
+		logger.Panic(err)
 	}
 
 	return json

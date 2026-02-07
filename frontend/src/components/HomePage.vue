@@ -33,7 +33,7 @@ watchEffect(() => {
 
 function createRoom() {
   // const data = { action: 'join-room', message: null, sender: { name: playerName.value } }
-  const data = { action: 'create-room', message: null, sender: { name: playerName.value } }
+  const data = { action: 'create-room', data: null, sender: { name: playerName.value } }
   console.log(data, "createRoom data");
 
   send(JSON.stringify(data))
@@ -43,24 +43,27 @@ function createRoom() {
 }
 
 function handleMessage(event: MessageEvent) {
-  const data: WSMessage = JSON.parse(event.data)
+  console.log(event.data);
+
+  const data: WSMessage<string> = JSON.parse(event.data)
+
   switch (data.action) {
     case 'join-room':
       console.log(data)
       console.log("Did this run")
-      router.push({ name: "room", params: { room: data.message } })
+      router.push({ name: "room", params: { room: data.data } })
       // router.push(data.message)
       break
     case 'create-room':
       console.log(data)
       console.log("Did this run")
-      router.push({ name: "room", params: { room: data.message } })
+      router.push({ name: "room", params: { room: data.data } })
       // router.push(data.message)
       break
     case 'send-message': {
       // WSState.data = WSMessage
       console.log(data)
-      router.push({ name: "room", params: { room: data.message } })
+      router.push({ name: "room", params: { room: data.data } })
       // console.log(WSMessage);
       break
     }

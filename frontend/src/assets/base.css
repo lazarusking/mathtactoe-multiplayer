@@ -1,6 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 /* color palette from <https://github.com/vuejs/theme> */
 :root {
   --vt-c-white: #ffffff;
@@ -50,12 +51,12 @@ body {
   min-height: 100vh;
   height: 100vh;
   color: var(--color-text);
-  background: var(--color-background);
   transition:
     color 0.5s,
     background-color 0.5s;
   line-height: 1.6;
   font-family:
+    'Plus Jakarta Sans',
     Inter,
     -apple-system,
     BlinkMacSystemFont,
@@ -72,4 +73,67 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+} */
+
+/* .font-display {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+} */
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(43, 238, 121, 0.7);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 15px rgba(43, 238, 121, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(43, 238, 121, 0);
+  }
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+
+.text-gradient {
+  background: linear-gradient(to right, #06B6D4, #2bee79);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.cloud-shape {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 50%;
+  z-index: 0;
+  filter: blur(40px);
+}
+
+.dark .cloud-shape {
+  background: rgba(255, 255, 255, 0.05);
 }

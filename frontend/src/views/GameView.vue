@@ -2,553 +2,564 @@
 import Chat from '@/components/ChatUI.vue'
 import FloatingChatButton from '@/components/FloatingChatButton.vue'
 import GameWinModal from '@/components/GameWinModal.vue'
-import type { Detail, WSMessage } from '@/interface'
+import WaitingScreen from '@/components/WaitingScreen.vue'
+import type { GameState, GameStatePayload, GameStatus, Piece, Role, WSMessage } from '@/interface'
 import { websocket } from '@/lib/socket'
 import { useWebSocket } from '@vueuse/core'
-import { computed, onUnmounted, reactive, ref, watchEffect } from 'vue'
-import { useRoute } from 'vue-router'
+import {
+    ArrowLeft,
+    Ban,
+    BookOpen,
+    Calculator,
+    CheckCircle,
+    Link,
+    MousePointer2,
+    Plus,
+    RefreshCw,
+    Trophy
+} from 'lucide-vue-next'
+import { computed, onBeforeMount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
-const loaders = Object.values(import.meta.glob('@assets/loaders/*.{png,jpg,jpeg,PNG,JPEG,gif,webp}', { eager: true, as: 'url' }))
-
+/**
+ * CONSTANTS & REFS
+ */
+const route = useRoute()
+const router = useRouter()
+const loaders: string[] = Object.values(import.meta.glob('@assets/loaders/*.{png,jpg,jpeg,PNG,JPEG,gif,webp}', { eager: true, query: '?url', import: 'default' }))
 const randomGallery = loaders[Math.floor(Math.random() * loaders.length)]
 
-const route = useRoute()
-const username = ref('')
-const chatMessages = ref<{ sender: string, text: string }[]>([])
-const showChat = ref(false)
+const username = ref(localStorage.getItem('username') || '')
+const chatMessages = ref<{ sender: string, text: string, id: string }[]>([])
+const showChat = ref(true)
 
-function toggleChat() {
-    showChat.value = !showChat.value;
-}
-const storedUsername = localStorage.getItem('username') || ''
-if (storedUsername) {
-    username.value = storedUsername
-}
+const options = () => Array.from({ length: 9 }, (_, i) => ({ id: i + 1, number: '-', owner: '' }))
+const tictacGrid = ref<Piece[]>(options())
 
-function shareRoom() {
-    const data: ShareData = { url: route.fullPath, text: "Join me let's play!", title: "TicTacToe Math" }
-    let shareSuccess = false
-
-    try {
-        if (navigator.canShare && navigator.canShare(data) && navigator.share) {
-            navigator.share(data)
-            shareSuccess = true
-        }
-    } catch (error) {
-        shareSuccess = false
-    }
-
-    if (!shareSuccess) {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(`${data.url}\n${data.text}`)
-        } else {
-            console.log("Error copying to clipboard");
-        }
-    }
-}
-
-function playAgain() {
-    // router.go(0)
-    console.log("replaying game");
-
-    const data = {
-        action: 'start-game',
-        message: "starting new game",
-        sender: { ...WSState.data.sender, name: username.value },
-        target: { ...WSState.data.target, id: route.params.room as string }
-
-    };
-    send(JSON.stringify(data));
-}
-
-const { data, send } = useWebSocket(websocket.url, {
-    onMessage(ws, event) {
-        handleMessage(event)
-    }, immediate: true,
-    autoReconnect: true
-})
-
-const options = () => {
-    const arr = []
-    for (let index = 1; index <= 9; index++) {
-        arr.push({ id: index, number: '-' })
-    }
-    return arr
-}
-const tictacGrid = ref(options())
-
-
+/**
+ * REACTIVE STATE
+ */
 const gameState = reactive({
     isSelecting: false,
-    selectedGrid: { id: 0, number: '-' },
-    players: {} as { [key: string]: Detail[] },
-    currentPlayer: 0,
+    selectedGrid: { id: 0, number: '-', owner: '' } as Piece,
+    players: {} as GameState["players"],
+    currentPlayer: "",
     activeTurn: false,
-    selectGrid(grid: Detail) {
-        if (grid.number === '-') {
-            this.isSelecting = true
-            this.selectedGrid = grid
-            console.log(grid)
-            return
-        }
-
-        if (grid.number === '-' && this.isSelecting) {
-            this.selectedGrid = grid
-        }
-    },
-    placeNumber(button: Detail) {
-        if (WSState.data.action === 'start-game') {
-            console.log(button.number, gameState.selectedGrid);
-            if (gameState.selectedGrid.id === 5 && button.number.toString() === '5') {
-                gameState.setToast("Can't start with 5 at this position😏")
-                return
-            }
-        }
-        if (this.isSelecting && isCurrentPlayer.value) {
-            tictacGrid.value = tictacGrid.value.map((grid) => {
-                if (grid.id == this.selectedGrid.id && grid.number === '-') {
-                    return { ...grid, number: button.number.toString() }
-                }
-                return grid
-            })
-            this.players[WSState.clientID] = this.players[WSState.clientID].filter(
-                (item) => button.id !== item.id
-            )
-            console.log(WSState.data)
-            this.isSelecting = false
-            this.selectedGrid = { id: 0, number: '-' }
-            const message = JSON.stringify({
-                ...WSState.data,
-                action: 'send-game',
-                message: JSON.stringify(tictacGrid.value),
-                // target: (WSState.data as WSMessage).target
-                sender: { ...WSState.data.sender, name: username.value },
-                target: { ...WSState.data.target, id: route.params.room as string }
-
-            } as WSMessage)
-            send(message)
-        }
-    },
     gameStatus: {
         gameWon: false,
         gameOver: false,
         gameDraw: false,
-    },
-    setGameStatus(gameStatus: { gameWon: boolean; gameOver: boolean; gameDraw: boolean }) {
-        gameState.gameStatus = gameStatus
-    },
+        winner: null
+    } as GameStatus,
     toastMsg: "",
-    setToast(msg: string) {
-        this.toastMsg = msg
-        setTimeout(() => {
-            this.toastMsg = ''
-        }, 1000);
-    }
-})
-const players = computed(() => (Object.keys(gameState.players)))
 
+    selectGrid(grid: Piece) {
+        if (grid.number === '-') {
+            this.isSelecting = true
+            this.selectedGrid = grid
+        }
+    },
 
-const WSState = reactive({
-    IsConnected: false,
-    data: data as unknown as WSMessage,
-    tictacGrid: tictacGrid,
-    clientID: '',
-    clients: [] as unknown as { id: string; name: string }[],
-    roomId: route.params.room
-})
-// const keyr = ref(0)
-// const flag = ref(true)
-
-// function randPlay() {
-//     // let a = ref([1, 2, 3, 4, 5, 6, 7, 8, 9])
-//     // let b = gameState.players[WSState.clientID]
-//     // let flag = true
-//     if (WSState.clients.length >= 2 && !calculateWinner(tictacGrid.value)) {
-//         while (flag.value) {
-//             const randomGrid = Math.floor(Math.random() * tictacGrid.value.length)
-//             keyr.value = (keyr.value + 1) % 2
-//             console.log(keyr.value)
-//             const player = gameState.players[WSState.clients[keyr.value].id]
-//             console.log(WSState.clients[keyr.value].id)
-
-//             const randomBtn = Math.floor(Math.random() * player.length)
-//             console.log(tictacGrid.value[randomGrid])
-//             if (tictacGrid.value[randomGrid].number === '-' && player[randomBtn]) {
-//                 console.log(randomBtn)
-
-//                 selectGrid(tictacGrid.value[randomGrid])
-//                 placeNumber(player[randomBtn])
-//             }
-//             // else {
-//             //     continue
-//             // }
-//             if (calculateWinner(tictacGrid.value)) {
-//                 console.log('Winner')
-//                 flag.value = false
-//                 gameState.gameStatus.gameWon = true
-//                 gameState.gameStatus.gameOver = true
-//                 break
-//             }
-//         }
-//     }
-// }
-
-
-function sendChatMessage(message: string) {
-    const chatMessage = {
-        action: 'send-message',
-        message: message,
-        sender: { id: WSState.clientID, name: username.value },
-        target: { id: route.params.room as string }
-    };
-    send(JSON.stringify(chatMessage));
-}
-watchEffect(() => {
-    if (route.params.room) {
-        //here doesn't add the sender name
-        const data = { action: 'join-room', message: route.params.room, sender: { name: username.value } }
-        console.log(WSState.data, "current state after joining room");
-        // send({data})
-        send(JSON.stringify({ ...data, action: 'join-room', message: route.params.room }))
-    }
-})
-
-onUnmounted(() => {
-    console.log("leaving room");
-    // WSState.clients.splice(gameState.currentPlayer, 1)
-    console.log(WSState.clients);
-
-    send(JSON.stringify({ action: "leave-room", message: route.params.room }))
-})
-
-
-
-function handleMessage(event: MessageEvent<string>) {
-    const data = event.data.split(/\r?\n/)
-    // console.log(data);
-    for (let i = 0; i < data.length; i++) {
-        const WSMessage: WSMessage = JSON.parse(data[i])
-        console.log(WSMessage);
-
-        let message; // Move the declaration here
-        switch (WSMessage.action) {
-            case 'start-game': {
-                message = JSON.parse(WSMessage.message) // Assign the value here
-                WSState.data = WSMessage
-                console.log(WSState.data.sender, "current sender state");
-
-                tictacGrid.value = options()
-                console.log(message)
-                WSState.clients = message.clients
-                gameState.players = message.players
-                gameState.currentPlayer = message.currentPlayer
-                gameState.setGameStatus(message.gameStatus)
-                console.log(gameState.players)
-                break
+    placeNumber(button: Piece) {
+        if (WSState.isFirstMove) {
+            if (this.selectedGrid.id === 5 && button.number.toString() === '5') {
+                this.setToast("Can't start with 5 at this position😏")
+                return
             }
-            case 'update-game': {
-                WSState.data = WSMessage
-                message = JSON.parse(WSMessage.message) // Assign the value here
-                // gameState.currentPlayer = message.currentPlayer
-                gameState.currentPlayer = message
-                console.log(message)
-                console.log(gameState.players)
-
-                break
-            }
-            case 'send-message': {
-                // WSState.data = WSMessage
-                console.log(WSMessage);
-                chatMessages.value.push({ sender: WSMessage.sender?.name ?? "system", text: WSMessage.message })
-                break
-            }
-            case 'send-game': {
-                // WSState.data = WSMessage
-                message = JSON.parse(WSMessage.message) // Assign the value here
-                console.log(WSMessage);
-                tictacGrid.value = message
-                break
-            }
-            case 'join-room':
-                WSState.data = WSMessage
-                WSState.clientID = WSMessage.sender.id
-                //   if (route.params.room != data.message) {
-                //     console.log(route)
-                //     console.log(data.message)
-                //   }
-                break
-            case 'game-status': {
-                WSState.data = WSMessage
-                const message: { gameOver: boolean, gameWon: boolean, gameDraw: boolean } = JSON.parse(WSMessage.message)
-                if (message.gameDraw) {
-                    gameState.gameStatus.gameDraw = true
-                    gameState.gameStatus.gameOver = message.gameOver
-                    break
-                }
-                if (WSState.clientID === WSMessage.sender.id) {
-                    gameState.gameStatus.gameOver = message.gameOver
-                    gameState.gameStatus.gameWon = message.gameWon
-                    // console.log("Juxtapose");
-
-                } else {
-                    gameState.gameStatus.gameWon = false
-                    gameState.gameStatus.gameOver = true
-                    // console.log("Reverse side");
-
-                }
-                console.log(WSMessage.sender);
-                break
-            }
-            default:
-                console.log(JSON.parse(WSMessage.message))
-                message = JSON.parse(WSMessage.message) // Assign the value here
-                WSState.clients = message.clients
-                gameState.players = message.players
-                break
+            WSState.isFirstMove = false
         }
 
+        if (this.isSelecting && isCurrentPlayer.value) {
+            tictacGrid.value = tictacGrid.value.map((grid) => {
+                if (grid.id == this.selectedGrid.id && grid.number === '-') {
+                    return { ...grid, number: button.number.toString(), owner: WSState.clientID }
+                }
+                return grid
+            })
+
+            this.isSelecting = false
+            const message = JSON.stringify({
+                action: 'send-game',
+                data: { location: this.selectedGrid.id, number: button.number, playerID: WSState.clientID },
+                sender: { id: WSState.clientID, name: username.value },
+                target: { id: route.params.room as string }
+            } as WSMessage)
+
+            try {
+                send(message)
+            } catch (error) {
+                console.error("Error sending game state", error);
+            }
+
+            this.players[WSState.clientID].pieces = this.players[WSState.clientID].pieces.filter(
+                (item) => button.id !== item.id
+            )
+            this.selectedGrid = { id: 0, number: '-', owner: '' }
+        }
+    },
+
+    setGameStatus(status: GameStatus) {
+        this.gameStatus = status
+    },
+
+    setToast(msg: string) {
+        this.toastMsg = msg
+        setTimeout(() => this.toastMsg = '', 1000)
+    }
+})
+
+/**
+ * WEBSOCKET SETUP
+ */
+const { send, ws } = useWebSocket(websocket.url, {
+    onMessage: (_, event) => handleMessage(event),
+    immediate: true,
+    autoReconnect: true
+})
+
+const WSState = reactive({
+    role: "spectator" as Role,
+    clientID: '',
+    playerCount: 0,
+    totalCount: 0,
+    isFirstMove: true
+})
+
+
+/**
+ * COMPUTED PROPERTIES
+ */
+const playerIds = computed(() => Object.keys(gameState.players))
+const currentPlayerId = computed(() => WSState.clientID)
+const isCurrentPlayer = computed(() => playerIds.value.length >= 2 && WSState.clientID === gameState.currentPlayer)
+const isSpectator = computed(() => WSState.role === 'spectator')
+
+// Logic to identify the two competitors for display
+const p1Info = computed(() => {
+    if (isSpectator.value) {
+        const id = playerIds.value[0] || ''
+        const name = gameState.players[id]?.client.name
+        return { id, name: Boolean(name) && name || 'Player 1' }
+    }
+    return { id: WSState.clientID, name: 'You' }
+})
+
+const p2Info = computed(() => {
+    if (isSpectator.value) {
+        const id = playerIds.value[1] || ''
+        const name = gameState.players[id]?.client.name
+        return { id, name: Boolean(name) && name || 'Player 2' }
+    }
+    const oppId = playerIds.value.find(id => id !== WSState.clientID) || ''
+    return { id: oppId, name: gameState.players[oppId]?.client.name || 'Opponent' }
+})
+
+const playerNameLabel = computed(() => {
+    if (isSpectator.value) {
+        const name = gameState.players[gameState.currentPlayer]?.client.name || '...'
+        return `Spectating Turn: ${name}`
+    }
+    const oppName = p2Info.value.name
+    return isCurrentPlayer.value ? `Your Turn` : `Waiting for ${oppName}`
+})
+
+const currentTurnLabel = computed(() => {
+    if (gameState.gameStatus.gameOver) return "Game Over"
+    return "Status"
+})
+
+const didIWin = computed(() => gameState.gameStatus.gameWon && gameState.gameStatus.winner === WSState.clientID)
+const winnerName = computed(() => {
+    const winnerId = gameState.gameStatus.winner
+    return winnerId ? (gameState.players[winnerId]?.client.name ?? "Unknown") : null
+})
+
+/**
+ * HANDLER FUNCTIONS
+ */
+function toggleChat() {
+    showChat.value = !showChat.value
+}
+
+function shareRoom() {
+    const data: ShareData = { url: window.location.href, text: "Join me let's play!", title: "TicTacToe Math" }
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(`${data.url}\n${data.text}`)
+        gameState.setToast("Link copied to clipboard!")
+    }
+    try {
+        if (navigator.share && navigator.canShare?.(data)) {
+            navigator.share(data)
+            return
+        }
+    } catch (error) {
+        console.error("Share failed", error)
     }
 }
 
+function playAgain() {
+    send(JSON.stringify({
+        action: 'start-game',
+        sender: { id: WSState.clientID, name: username.value },
+        target: { id: route.params.room as string }
+    }))
+}
 
-const isCurrentPlayer = computed(() => {
-    const currentClient = WSState.clientID
-    //   console.log(
-    //     currentClient,
-    //     WSState.clients[gameState.currentPlayer].id,
-    //     currentClient === WSState.clients[gameState.currentPlayer].id
-    //   )
-    if (players.value.length >= 2 && currentClient === players.value[gameState.currentPlayer]) {
-        return true
+function sendChatMessage(message: string) {
+    send(JSON.stringify({
+        action: 'send-message',
+        data: message,
+        sender: { id: WSState.clientID, name: username.value },
+        target: { id: route.params.room as string }
+    }))
+}
+
+function handleAddBot() {
+    send(JSON.stringify({
+        action: 'add-bot',
+        target: { id: route.params.room as string }
+    }))
+}
+
+function handleMessage(event: MessageEvent<string>) {
+    const msgLines = event.data.split(/\r?\n/).filter(line => line.trim() !== '')
+    for (const line of msgLines) {
+        try {
+            const msg: WSMessage = JSON.parse(line)
+            console.log(msg);
+
+            switch (msg.action) {
+                case 'start-game':
+                    tictacGrid.value = options()
+                    WSState.isFirstMove = true
+                    break
+                case 'state-sync': {
+                    const payload = msg.data as GameStatePayload
+                    WSState.clientID = payload.self
+                    gameState.players = payload.game.players
+                    gameState.currentPlayer = payload.game.currentPlayer
+                    gameState.setGameStatus(payload.game.gameStatus)
+                    WSState.role = payload.role
+                    WSState.playerCount = payload.playerCount
+                    WSState.totalCount = payload.totalCount
+                    WSState.isFirstMove = payload.game.isFirstMove
+                    break
+                }
+                case 'update-game':
+                    gameState.currentPlayer = msg.data as string
+                    break
+                case 'send-message':
+                    chatMessages.value.push({
+                        sender: msg.sender?.name ?? "system",
+                        text: msg.data as string,
+                        id: msg.sender?.id ?? "system"
+                    })
+                    break
+                case 'send-game': {
+                    const payload = msg.data as { location: number, number: string, playerID: string }
+                    tictacGrid.value = tictacGrid.value.map(g =>
+                        g.id === payload.location ? { ...g, number: payload.number.toString(), owner: payload.playerID } : g
+                    )
+                    WSState.isFirstMove = false;
+                    break
+                }
+                case 'join-room':
+                    WSState.clientID = msg.sender?.id || ''
+                    break
+                case 'game-status':
+                    gameState.setGameStatus(msg.data as GameStatus)
+                    break
+            }
+        } catch (e) {
+            console.error("Failed to parse WS message", line, e)
+        }
     }
-    return false
+}
+
+const handleExit = () => router.push('/')
+
+/**
+ * LIFECYCLE & WATCHERS
+ */
+onBeforeMount(() => {
+    if (route.params.room) {
+        send(JSON.stringify({
+            action: 'join-room',
+            data: route.params.room,
+            sender: { name: username.value }
+        }))
+    }
 })
 
-
-const isPlayingClasses = computed(() => {
-    return {
-        'blur-none opacity-75': gameState.isSelecting,
-        'pointer-events-none': !isCurrentPlayer.value
-    }
-})
-
-const isSpectator = computed(() => {
-    return !players.value.includes(WSState.clientID);
-});
-const playerName = computed(() => {
-    console.log(WSState.data.sender);
-    const opponent = WSState.clients.find(client => client.id !== WSState.clientID)
-    // If the current user is not a player, consider them a spectator
-    if (isSpectator.value) {
-        return `You are spectating ${opponent?.name ?? "a game"}`;
-    }
-    // if (opponent) {
-    //     playerNames.opponentPlayer = opponent.name
-    // }
-    const currentUsername = username.value ? ` (${username.value})` : '';
-    const opponentName = opponent?.name ? ` (${opponent.name})` : '';
-
-    return isCurrentPlayer.value ? `Your Turn${currentUsername}` : `Opponent's Turn${opponentName}`;
-})
-
+watch(
+    [() => route.params.room, () => ws.value?.readyState],
+    ([room, state], [oldRoom]) => {
+        if (state !== WebSocket.OPEN || !room) return
+        if (oldRoom && oldRoom !== room) {
+            send(JSON.stringify({
+                action: "leave-room",
+                data: oldRoom,
+                sender: { id: WSState.clientID, name: username.value }
+            }))
+        }
+        send(JSON.stringify({
+            action: "join-room",
+            data: room,
+            sender: { name: username.value }
+        }))
+    },
+    { immediate: true }
+)
 </script>
+
 <template>
-    <!-- <div v-if="WSState.clients.length < 2" aria-modal="true"
-        class="fixed inset-0 z-10 flex items-center justify-center text-gray-500 bg-black bg-opacity-50" role="dialog">
-        <div class="max-w-md px-4 py-8 mx-auto space-y-2 text-center text-white rounded-lg sm:px-6 lg:px-8">
-            <p class="text-3xl font-bold"> Waiting for an opponent... </p>
-            <button name="share" @click="shareRoom"
-                class="flex px-4 py-2 mx-auto text-white bg-purple-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 ">
-                <svg class="w-5 h-6 mr-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z">
-                    </path>
-                </svg>
-                <span>Share</span>
-            </button>
-        </div>
-
-    </div> -->
-
-    <Transition>
-        <div v-if="gameState.toastMsg"
-            class="transition ease-in-out fixed inset-0 z-10 flex items-center justify-center text-gray-500 bg-opacity-50">
-            <div
-                class="flex px-4 py-2 mx-auto text-white bg-rose-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1  max-w-md space-y-2 text-center sm:px-6 lg:px-8">
-                {{ gameState.toastMsg }}
-            </div>
-        </div>
-    </Transition>
-    <!-- <ChatComponent /> -->
-    <!-- <main :class="{ 'blur': players.length < 2 }" -->
-    <main class="relative container flex flex-col items-center justify-center h-screen px-4 py-12 mx-auto"
-        :class="WSState.clients.length < 2 && 'inset-0 z-10 flex items-center justify-center text-gray-500 bg-opacity-50'">
-        <h2 v-if="players.length >= 2" class="px-4 py-2 mb-4 text-2xl font-bold text-center text-white"
-            :class="[isSpectator ? 'bg-gray-500' : (isCurrentPlayer ? 'bg-green-700' : 'bg-red-700')]">
-            {{
-                playerName
-            }}</h2>
-        <!-- <button @click="randPlay">Play</button> -->
-
-        <h2 v-if="WSState.clients.length < 2" class="relative space-y-2 text-center mb-8 animate-pulse">
-            <p class="text-2xl font-bold mb-2">Waiting for an opponent...</p>
-            <button name="share" @click="shareRoom"
-                class="flex px-4 py-2 mx-auto text-white bg-purple-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 ">
-                <svg class="w-5 h-6 mr-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z">
-                    </path>
-                </svg>
-                <span>Share</span>
-            </button>
-            <!-- <div
-                class="inline-block w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin">
-            </div> -->
-
-            <img :src="randomGallery" alt="Loading" className="mx-auto max-w-xs rounded-lg shadow-lg" />
-
-        </h2>
-        <template v-else>
-            <!-- <div class=""> -->
-            <section aria-label="tictac grid buttons"
-                class="w-full max-w-md aspect-square p-1 bg-gradient-to-br from-blue-500 via-violet-500 to-pink-500 rounded-lg shadow-lg"
-                :class="isPlayingClasses">
-                <div class="grid grid-cols-3 w-full h-full p-0.5 rounded-lg overflow-hidden">
-                    <button aria-label="tictac button" v-for="y in tictacGrid" :key="y.id" :id="y.id.toString()"
-                        @click="gameState.selectGrid(y)" type="button" class="w-full h-full bg-gray-900 flex items-center justify-center text-4xl font-bold
-                        focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all
-                        duration-200 border-purple-500 border-4 border-gradient"
-                        :class="{ 'bg-transparent ': gameState.selectedGrid.id === y.id }">
-                        {{ y.number }}
-                        <!-- <span :class="{ 'text-blue-400': y.number === 'X', 'text-purple-400': y.number === 'O' }">
-                        </span> -->
-                    </button>
-                </div>
-            </section>
-            <section aria-label="game-buttons" class="mt-6 flex justify-center space-x-4">
-                <button @click="gameState.placeNumber(i)" :value="i.id" v-for="i in gameState.players[WSState.clientID]"
-                    :key="i.id" type="button"
-                    class="button-gradient w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-lg transition-all duration-200 hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900">
-                    {{ i.number }}
-                </button>
-            </section>
-            <!-- <section aria-label="tictac grid buttons"
-                class="grid w-full max-w-md grid-cols-3 grid-rows-3 gap-4 shadow-md h-3/5" :class="isPlayingClasses">
-                <button aria-label="tictac button" @click="gameState.selectGrid(y)" type="button"
-                    :class="{ 'ring ring-offset-2 ring-offset-slate-800 ring-blue-700': gameState.selectedGrid.id === y.id }"
-                    class="grid items-center justify-center w-auto h-auto p-8 text-4xl font-black text-white transition-colors bg-gray-600 rounded-lg shadow-md place-content-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none hover:bg-slate-700"
-                    v-for="y in tictacGrid" :key="y.id" :id="y.id.toString()">
-                    {{ y.number }}
-                </button>
-            </section> -->
-            <!-- <section aria-label="game-buttons"
-                class="w-full max-w-md h-1/4 grid grid-flow-col grid-cols-[repeat(auto-fit,_minmax(0,_1fr))] gap-2 font-black text-3xl shadow-md rounded-sm p-2 m-1">
-                <button @click="gameState.placeNumber(i)" :value="i.id" v-for="i in gameState.players[WSState.clientID]"
-                    :key="i.id" type="button"
-                    class="inline-flex items-center justify-center w-full h-auto max-w-md p-2 mt-8 text-2xl font-bold text-white bg-gray-700 rounded-md md:h-10 hover:bg-slate-800 md:p-10">
-                    {{ i.number }}
-                </button>
-            </section> -->
-            <!-- </div> -->
+    <div class="min-h-screen bg-[#F8FAFC] dark:bg-background-dark">
+        <!-- View 1: Lobby (Waiting for Opponent) -->
+        <template v-if="playerIds.length < 2">
+            <WaitingScreen :random-gallery="randomGallery" :room-code="(route.params.room as string)"
+                @cancel="handleExit" @share="shareRoom" @add-bot="handleAddBot" />
         </template>
 
-        <GameWinModal :game-status="gameState.gameStatus" @play-again="playAgain" />
-        <!-- <div v-if="showChat" class="lg:w-1/3 h-[400px] lg:h-auto">
-            <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden h-full flex flex-col">
-                <div class="flex items-center justify-between p-3 bg-gray-700">
-                    <div class="flex items-center">
-                        <MessageSquare class="w-5 h-5 text-blue-400 mr-2" />
-                        <h2 class="text-lg font-bold text-gray-100">Chat</h2>
+        <!-- View 2: Match In Progress -->
+        <template v-else>
+            <div
+                class="min-h-screen py-6 px-4 md:px-8 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10 text-slate-100">
+
+                <!-- Left Sidebar: Rules & Info -->
+                <div class="lg:col-span-3 space-y-6">
+                    <div class="flex items-center space-x-3 mb-6">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary to-green-600 flex items-center justify-center shadow-lg">
+                            <Calculator class="w-5 h-5 text-white" />
+                        </div>
+                        <h1 class="text-2xl font-bold text-slate-800 dark:text-white tracking-wide">
+                            TicTac<span class="text-secondary">Math</span>
+                        </h1>
                     </div>
-                    <button @click="toggleChat" class="lg:hidden text-gray-400 hover:text-white focus:outline-none">
-                        <X class="w-5 h-5" />
+
+                    <div
+                        class="bg-white dark:bg-surface-dark rounded-3xl p-6 shadow-xl border border-slate-100 dark:border-slate-700">
+                        <h2 class="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center">
+                            <BookOpen class="w-5 h-5 mr-2 text-secondary" />
+                            How to Play
+                        </h2>
+                        <div class="space-y-6">
+                            <div class="flex items-start space-x-3 group">
+                                <div
+                                    class="p-3 rounded-2xl bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400 transition-transform group-hover:scale-110 shadow-sm">
+                                    <Trophy class="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 class="font-black text-slate-700 dark:text-slate-200 text-sm tracking-tight">
+                                        Objective</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">Get 3
+                                        numbers in a line that sum exactly to 15.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start space-x-3 group">
+                                <div
+                                    class="p-3 rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 transition-transform group-hover:scale-110 shadow-sm">
+                                    <MousePointer2 class="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 class="font-black text-slate-700 dark:text-slate-200 text-sm tracking-tight">
+                                        Strategy</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">Select a
+                                        grid slot first, then pick a number from your deck.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start space-x-3 group">
+                                <div
+                                    class="p-3 rounded-2xl bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400 transition-transform group-hover:scale-110 shadow-sm">
+                                    <Ban class="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 class="font-black text-slate-700 dark:text-slate-200 text-sm tracking-tight">
+                                        Restriction</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">No
+                                        starting with 5 in the center.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Board Section -->
+                <div class="lg:col-span-6 flex flex-col items-center justify-center">
+                    <!-- Score Board / Status Bar -->
+                    <div
+                        class="w-full max-w-md bg-white dark:bg-surface-dark rounded-3xl p-5 mb-8 shadow-xl flex items-center justify-between border border-slate-100 dark:border-slate-700">
+                        <!-- Left: Player 1 / You -->
+                        <div class="flex flex-col items-center px-4">
+                            <span
+                                class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 truncate max-w-[80px]">{{
+                                    p1Info.name }}</span>
+                            <div
+                                :class="['w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all', (gameState.currentPlayer === p1Info.id) ? 'border-primary bg-primary/10 shadow-[0_0_15px_rgba(45,238,121,0.2)]' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 opacity-50']">
+                                <span class="text-2xl font-bold text-primary">{{ p1Info.name === 'You' ?
+                                    (username.charAt(0) || '?') : p1Info.name.charAt(0) }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Center: Turn indicator -->
+                        <div class="flex flex-col items-center flex-1">
+                            <span class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-tighter">{{
+                                currentTurnLabel }}</span>
+                            <div
+                                :class="['px-6 py-2 rounded-full  text-slate-600 dark:text-slate-300 text-xs font-bold shadow-inner truncate max-w-[180px]', playerNameLabel === 'Your Turn' ? 'bg-primary/10' : 'bg-accent/10']">
+                                {{ playerNameLabel }}
+                            </div>
+                        </div>
+
+                        <!-- Right: Player 2 / Opponent -->
+                        <div class="flex flex-col items-center px-4">
+                            <span
+                                class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 truncate max-w-[80px]">
+                                {{ p2Info.name }}
+                            </span>
+                            <div
+                                :class="['w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all', (gameState.currentPlayer === p2Info.id) ? 'border-accent bg-accent/10 shadow-[0_0_15px_rgba(251,113,133,0.2)]' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 opacity-50']">
+                                <span class="text-2xl font-bold text-accent">{{ p2Info.name.charAt(0) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3x3 Skeletal Grid -->
+                    <div
+                        class="relative p-6 bg-slate-200/30 dark:bg-slate-900/60 rounded-[4rem] shadow-2xl border-2 border-slate-100 dark:border-slate-800 backdrop-blur-md">
+                        <div class="grid grid-cols-3 gap-4 w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96">
+                            <button v-for="y in tictacGrid" :key="y.id"
+                                :disabled="!isCurrentPlayer || gameState.gameStatus.gameOver"
+                                @click="gameState.selectGrid(y)" :class="[
+                                    'group relative rounded-2xl flex items-center justify-center transition-all duration-300 outline-none border-2 shadow-sm',
+                                    y.number === '-'
+                                        ? (gameState.selectedGrid.id === y.id
+                                            ? 'bg-primary/10 border-primary border-solid shadow-[inset_0_0_10px_rgba(45,238,121,0.2)] scale-[1.02]'
+                                            : 'bg-slate-50 dark:bg-transparent border-dashed border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500')
+                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-white/5 shadow-xl'
+                                ]">
+                                <template v-if="y.number !== '-'">
+                                    <div class="flex flex-col items-center scale-up">
+                                        <span
+                                            :class="['text-4xl sm:text-5xl md:text-6xl font-black', (y.owner === p1Info.id ? 'text-primary' : 'text-accent')]">
+                                            {{ y.number }}
+                                        </span>
+                                        <div
+                                            :class="['mt-2 w-8 h-1 rounded-full opacity-60', (y.owner === p1Info.id ? 'bg-primary' : 'bg-accent')]">
+                                        </div>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="flex items-center justify-center">
+                                        <CheckCircle v-if="gameState.selectedGrid.id === y.id"
+                                            class="w-8 h-8 text-primary opacity-60" />
+                                        <Plus v-else
+                                            class="w-8 h-8 text-slate-300 dark:text-slate-700 opacity-20 group-hover:opacity-60 transition-opacity" />
+                                    </div>
+                                </template>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Number Selection Deck -->
+                    <div class="mt-10 w-full max-w-lg"
+                        :class="{ 'opacity-50 pointer-events-none grayscale-[0.5]': !gameState.isSelecting }">
+                        <p
+                            class="text-center text-xs font-black text-slate-500 dark:text-slate-400 mb-5 uppercase tracking-[0.3em]">
+                            {{ gameState.isSelecting ? 'Pick Your Number' : 'Select a Slot First' }}
+                        </p>
+                        <div class="flex flex-wrap justify-center gap-4">
+                            <button v-for="i in (gameState.players[currentPlayerId]?.pieces || [])" :key="i.id"
+                                @click="gameState.placeNumber(i)"
+                                class="w-14 h-14 rounded-2xl text-2xl font-black transition-all shadow-lg transform hover:scale-110 active:scale-90 bg-white dark:bg-surface-dark border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-primary hover:text-primary">
+                                {{ i.number }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar -->
+                <div class="lg:col-span-3 space-y-6">
+                    <div
+                        class="bg-white dark:bg-surface-dark rounded-3xl p-6 shadow-xl border border-slate-100 dark:border-slate-700">
+                        <h2 class="text-xl font-bold text-slate-800 dark:text-white mb-6">Controls</h2>
+                        <div class="space-y-4">
+                            <button @click="shareRoom"
+                                class="w-full py-4 px-6 rounded-2xl bg-purple-700 border-2 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all flex items-center justify-between group">
+                                <span>Share Invite</span>
+                                <Link class="w-5 h-5 text-slate-400 group-hover:text-primary" />
+                            </button>
+                            <button @click="playAgain"
+                                class="w-full py-4 px-6 rounded-2xl bg-primary/90 text-white shadow-xl shadow-primary/20 font-bold hover:brightness-105 transition-all flex items-center justify-between group">
+                                <span>New Game</span>
+                                <RefreshCw
+                                    class="w-5 h-5 text-white/80 group-hover:rotate-180 transition-transform duration-500" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-white dark:bg-surface-dark rounded-3xl flex flex-col h-[350px] shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden relative">
+                        <Chat v-if="showChat" class="h-full" :playerID="WSState.clientID" :messages="chatMessages"
+                            @send-message="sendChatMessage" @toggle="toggleChat" :users="WSState.totalCount" />
+                    </div>
+
+                    <button @click="handleExit"
+                        class="w-full py-4 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+                        <ArrowLeft class="w-4 h-4" />
+                        Exit to Lobby
                     </button>
                 </div>
-                <ChatComponent :player-name="username" :room-id="route.params.room as string" :messages="chatMessages"
-                    @send-message="sendChatMessage" />
-            </div>
-        </div> -->
 
-        <Chat class="fixed right-0 top-0 bottom-0 hidden md:flex w-80" v-if="showChat" :player-name="username"
-            :messages="chatMessages" @send-message="sendChatMessage" @toggle="showChat = false"
-            :users="WSState.clients.length" />
+                <GameWinModal v-if="gameState.gameStatus.gameOver" :won="didIWin" :draw="gameState.gameStatus.gameDraw"
+                    :winner="winnerName" @play-again="playAgain" />
+            </div>
+        </template>
+
+        <Chat class="fixed right-0 top-0 bottom-0 hidden md:flex w-80" v-if="showChat && playerIds.length < 2"
+            :playerID="WSState.clientID" :messages="chatMessages" @send-message="sendChatMessage" @toggle="toggleChat"
+            :users="WSState.totalCount" />
 
         <!-- mobile size -->
         <Chat class="inset-0 md:hidden block absolute bg-gray-900 bg-opacity-95 z-10" v-if="showChat"
-            :player-name="username" :messages="chatMessages" @send-message="sendChatMessage" @toggle="showChat = false"
-            :users="WSState.clients.length" />
-        <!-- <div v-if="showChat" class="lg:hidden block absolute top-0 right-0 w-1/3 h-[400px] lg:h-auto">
-            <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden h-full flex flex-col">
-                <div class="flex items-center justify-between p-3 bg-gray-700">
-                    <div class="flex items-center">
-                        <MessageSquare class="w-5 h-5 text-blue-400 mr-2" />
-                        <h2 class="text-lg font-bold text-gray-100">Chat</h2>
-                    </div>
-                    <button @click="toggleChat" class="lg:hidden text-gray-400 hover:text-white focus:outline-none">
-                        <X class="w-5 h-5" />
-                    </button>
-                </div>
-                <ChatComponent :player-name="username" :room-id="route.params.room as string" :messages="chatMessages"
-                    @send-message="sendChatMessage" />
-            </div>
-        </div> -->
-        <FloatingChatButton v-if="!showChat" @toggle="toggleChat" />
+            :playerID="WSState.clientID" :messages="chatMessages" @send-message="sendChatMessage" @toggle="toggleChat"
+            :users="WSState.totalCount" />
+        <FloatingChatButton v-if="!showChat && playerIds.length >= 2" @toggle="toggleChat" />
 
-    </main>
-    <!-- <Transition name="slide-up">
-        <div v-if="showChat" class="absolute inset-0 bg-gray-900 bg-opacity-95 flex flex-col z-10">
-            <div class="bg-gray-800 rounded-t-lg shadow-lg overflow-hidden flex-grow flex flex-col">
+        <!-- Toast / Notification Layer -->
+        <Transition>
+            <div v-if="gameState.toastMsg"
+                class="fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-accent text-white font-bold rounded-2xl shadow-2xl animate-in fade-in slide-in-from-top-4">
+                {{ gameState.toastMsg }}
             </div>
-            <div class="bg-gray-800 p-4 flex justify-between items-center">
-                <div class="flex items-center">
-                    <MessageSquare class="w-5 h-5 text-blue-400 mr-2" />
-                    <h2 class="text-lg font-bold text-gray-100">Chat</h2>
-                </div>
-                <button @click="toggleChat" class="text-gray-400 hover:text-white focus:outline-none">
-                    <X class="w-5 h-5" />
-                </button>
-            </div>
-            <ChatComponent :player-name="username" :room-id="route.params.room as string" :messages="chatMessages"
-                @send-message="sendChatMessage" />
-        </div>
-    </Transition> -->
+        </Transition>
+    </div>
 </template>
 
 <style scoped>
-.border-gradient {
-    border-image: linear-gradient(to bottom right, #3b82f6, #a855f7, #ec4899) 1;
-    /* border-image: linear-gradient(to bottom right, theme( gradientColorStops.pink.500)) 1; */
+.scale-up {
+    animation: scale-up 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
 
-.button-gradient {
-    background-image: linear-gradient(60deg, #29323c 0%, #485563 100%);
+@keyframes scale-up {
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.v-enter-active,
+.v-leave-active {
+    transition: opacity 0.3s ease;
 }
 
 .v-enter-from,
 .v-leave-to {
-    opacity: .2;
-}
-
-.slide-up-enter-active,
-.slide-up-leave-active {
-    transition: all 0.3s ease-out;
-}
-
-.slide-up-enter-from,
-.slide-up-leave-to {
-    transform: translateY(100%);
-    opacity: 0;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-    transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
     opacity: 0;
 }
 </style>

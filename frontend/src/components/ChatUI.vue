@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { useLocalStorage } from '@vueuse/core';
 import { SendIcon, XIcon } from 'lucide-vue-next';
 import { nextTick, onMounted, ref } from 'vue';
 
 const props = defineProps<{
-  playerName: string;
-  messages: { sender: string; text: string }[];
+  playerID: string;
+  messages: { sender: string; text: string, id: string }[];
   users: number
 }>();
 
@@ -17,6 +18,7 @@ const emit = defineEmits<{
 
 const newMessage = ref('')
 const messageList = ref<HTMLDivElement | null>(null);
+const username = useLocalStorage('username', '')
 
 const sendMessage = () => {
   if (newMessage.value.trim()) {
@@ -58,7 +60,7 @@ const scrollToBottom = async () => {
 const shouldShowSender = (index: number) => {
   if (index === 0) return true
   const prevMessage = props.messages[index - 1]
-  return prevMessage.sender !== props.messages[index].sender || prevMessage.sender === 'system'
+  return prevMessage.id !== props.messages[index].id || prevMessage.sender === 'system'
 }
 
 // const shouldShowAvatar = (index: number) => {
@@ -93,27 +95,26 @@ onMounted(() => {
     <div class="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin" ref="messageList">
       <div v-for="(message, index) in messages" :key="index" class="flex flex-col space-y-1">
         <div v-if="message.sender === 'system'" class="w-full flex justify-center">
-          <p
-            class="flex items-center text-sm text-gray-400 before:flex-1 before:border-t before:border-gray-700 before:mr-2 after:flex-1 after:border-t after:border-gray-700 after:ml-2">
-            {{ message.text }}
-          </p>
+
+          <span class="text-xs text-slate-400 bg-slate-200 dark:bg-white/5 px-2 py-1 rounded-md">{{ message.text
+          }}</span>
         </div>
         <div v-else class="flex flex-col space-y-1">
-          <div :class="['flex items-end', message.sender === playerName ? 'justify-end' : '']">
+          <div :class="['flex items-end', message.id === playerID ? 'justify-end' : '']">
             <!-- <div v-if="message.sender !== playerName && shouldShowAvatar(index)"
               class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0 mr-2 mb-auto">
               <UserIcon :size="12" />
             </div> -->
-            <div class="flex flex-col" :class="{ 'items-end': message.sender === playerName }">
+            <div class="flex flex-col" :class="{ 'items-end': message.id === playerID }">
               <span v-if="shouldShowSender(index)" class="text-xs mb-1"
-                :class="message.sender === playerName ? 'text-blue-300' : 'text-gray-400'">
+                :class="message.id === playerID ? 'text-blue-300' : 'text-gray-400'">
                 {{ message.sender }}
               </span>
               <div class="px-4 py-2 rounded-2xl" :class="{
-                'bg-blue-600 rounded-br-none': message.sender === playerName,
-                'bg-gray-700': message.sender !== playerName,
-                'rounded-br-none': message.sender === playerName && !isLastMessageFromSameSender(index),
-                'rounded-bl-none': message.sender !== playerName && !isLastMessageFromSameSender(index),
+                'bg-blue-600 rounded-br-none': message.id === playerID,
+                'bg-gray-700': message.id !== playerID,
+                'rounded-br-none': message.id === playerID && !isLastMessageFromSameSender(index),
+                'rounded-bl-none': message.id !== playerID && !isLastMessageFromSameSender(index),
                 'mt-1': !shouldShowSender(index)
               }">
                 <p class="text-sm">{{ message.text }}</p>

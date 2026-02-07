@@ -1,15 +1,13 @@
 @import './base.css';
 
-#app {
-  /* max-width: 1280px; */
+/* #app {
   height: 100%;
   display: flex;
   flex-direction: column;
   margin: 0 auto;
-  /* padding: 2rem; */
   font-weight: normal;
 }
 button,
 a {
   -webkit-tap-highlight-color: transparent;
-}
+} */

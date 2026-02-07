@@ -16,6 +16,7 @@ type Piece struct {
 type Detail struct {
 	Number string `json:"number"` // for some frontend reasons this is a string
 	ID     uint8  `json:"id"`
+	Owner  string `json:"owner"`
 }
 type GameStatus struct {
 	GameWon  bool       `json:"gameWon"`
@@ -33,6 +34,8 @@ type GameState struct {
 	Options       [][]Piece                `json:"options"`
 	// Clients       []*Client             `json:"clients"`
 	GameStatus GameStatus `json:"gameStatus"`
+
+	IsFirstMove bool `json:"isFirstMove"`
 }
 
 type GameStatePayload struct {
@@ -70,6 +73,7 @@ func NewGame() *GameState {
 			GameOver: false,
 			GameDraw: false,
 		},
+		IsFirstMove: true,
 	}
 }
 

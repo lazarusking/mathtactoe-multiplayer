@@ -1,15 +1,12 @@
 package main
 
-import (
-	"log"
-)
-
 type Hub struct {
 	clients    map[*Client]bool
 	rooms      map[*Room]bool
 	broadcast  chan *Message
 	register   chan *Client
 	unregister chan *Client
+	roomClosed chan string // Signal channel for room deletion
 }
 
 func NewHub() *Hub {
@@ -19,39 +16,37 @@ func NewHub() *Hub {
 		broadcast:  make(chan *Message),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		roomClosed: make(chan string),
 	}
 }
 
 func (hub *Hub) monitorClientsChannel() {
 	for {
+		logger.Printf("The hub rooms %+v ,%v", hub.rooms, len(hub.rooms))
+		for v := range hub.rooms {
+			logger.Printf("hub room %v", v.clients)
+			for c := range v.clients {
+				logger.Printf("client %s %s", c.Name, c.ID)
+
+			}
+		}
 		select {
 		case message := <-hub.broadcast:
 			for client := range hub.clients {
-				log.Printf("96%v", len(hub.rooms))
 				client.send <- message.encode()
 			}
 		case client := <-hub.register:
 			hub.clients[client] = true
-			// user := User{ID: client.UserID, User: "", Status: "setup"}
-			// client.conn.WriteJSON(user) //write user struct to client
 
 		case client := <-hub.unregister:
-			if ok := hub.clients[client]; ok {
-				delete(hub.clients, client)
-				// message := &Message{
-				// 	Action: UserLeftAction,
-				// 	Sender: client,
-				// }
-				// for client := range hub.clients {
-				// 	client.send <- message.encode()
-				// }
-				// close(client.send)
-			}
+			delete(hub.clients, client)
+		case roomID := <-hub.roomClosed:
+			hub.deleteRoom(roomID)
 		}
 	}
 }
 func (hub *Hub) createRoom(id string) *Room {
-	room := NewRoom(id)
+	room := NewRoom(id, hub.roomClosed)
 	go room.RunRoom()
 	hub.rooms[room] = true
 	return room
@@ -59,11 +54,8 @@ func (hub *Hub) createRoom(id string) *Room {
 func (h *Hub) deleteRoom(roomID string) {
 	room := h.findRoomByID(roomID)
 	if room != nil {
-		// close(room.register)
-		// close(room.unregister)
 		delete(h.rooms, room)
-		log.Printf("Room %s has been deleted", roomID)
-
+		logger.Printf("Room %s has been deleted from hub", room.ID)
 	}
 }
 func (hub *Hub) findRoomByID(id string) *Room {

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
-	"os"
 	"strconv"
 	"time"
 
@@ -12,6 +11,12 @@ import (
 )
 
 const welcomeMessage = "%s joined the room"
+
+type MoveData struct {
+	Location int    `json:"location"`
+	Number   uint8  `json:"number"`
+	PlayerId string `json:"playerID"`
+}
 
 type RoomState int
 
@@ -28,28 +33,13 @@ const (
 	RoleSpectator Role = "spectator"
 )
 
-func (room *Room) getRole(client *Client) Role {
-	if _, ok := room.players[client.ID]; ok {
-		return RolePlayer
-	}
-	return RoleSpectator
-}
-func (room *Room) buildGameStatePayload(client *Client) GameStatePayload {
-	return GameStatePayload{
-		Game:        room.game,
-		Role:        room.getRole(client),
-		Self:        client.ID,
-		PlayerCount: len(room.players),
-		TotalCount:  len(room.clients),
-	}
-}
-
 type BotEvent struct {
 	Reason string
 }
 type Room struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
+	roomClosed     chan string // Signal channel for room deletion
+	ID             string      `json:"id"`
+	Name           string      `json:"name"`
 	clients        map[*Client]bool
 	spectators     map[uuid.UUID]*Client
 	players        map[uuid.UUID]*Client //exactly 2 players
@@ -64,6 +54,22 @@ type Room struct {
 	botStop   map[uuid.UUID]chan struct{}
 	botEvents chan BotEvent
 	done      chan bool // Stop signal channel
+}
+
+func (room *Room) getRole(client *Client) Role {
+	if _, ok := room.players[client.ID]; ok {
+		return RolePlayer
+	}
+	return RoleSpectator
+}
+func (room *Room) buildGameStatePayload(client *Client) GameStatePayload {
+	return GameStatePayload{
+		Game:        room.game,
+		Role:        room.getRole(client),
+		Self:        client.ID,
+		PlayerCount: len(room.players),
+		TotalCount:  len(room.clients),
+	}
 }
 
 func (room *Room) getBot() *Client {
@@ -133,7 +139,8 @@ func (room *Room) runBot(bot *Client) {
 
 					move, ok := randomBotMove(
 						room.lastBoardState,
-						playedPieces)
+						playedPieces,
+						room.game.IsFirstMove)
 					//todo: fix stale pieces from previous match
 					logger.Printf("playedPieces: %+v, move: %+v", playedPieces,
 						move)
@@ -146,7 +153,7 @@ func (room *Room) runBot(bot *Client) {
 
 					newBoard := make([]Detail, len(room.lastBoardState))
 					copy(newBoard, room.lastBoardState)
-					newBoard[move.location-1] = Detail{Number: strconv.Itoa(int(move.move)), ID: uint8(move.location)}
+					newBoard[move.location-1] = Detail{Number: strconv.Itoa(int(move.move)), ID: uint8(move.location), Owner: bot.ID.String()}
 					var updatedPieces []Piece
 					for _, p := range playedPieces {
 						if strconv.Itoa(int(p.Number)) != strconv.Itoa(int(move.move)) {
@@ -155,7 +162,13 @@ func (room *Room) runBot(bot *Client) {
 						}
 					}
 					playedPieces = updatedPieces
-					payload, _ := json.Marshal(newBoard)
+					// payload, _ := json.Marshal(newBoard)
+					movePayload := MoveData{
+						Location: int(move.location),
+						Number:   uint8(move.move),
+						PlayerId: bot.ID.String(),
+					}
+					payload, _ := json.Marshal(movePayload)
 
 					room.events <- &Message{
 						Action: SendGameAction,
@@ -173,55 +186,62 @@ func (room *Room) runBot(bot *Client) {
 func randomBotMove(
 	board []Detail,
 	pieces []Piece,
+	isFirstMove bool,
 ) (struct {
 	move     uint
 	location uint
 }, bool) {
 
 	var empty []uint8
-	logger.Println(board)
 	for i, cell := range board {
 		if cell.Number == "-" || cell.Number == "" {
 			empty = append(empty, uint8(i+1))
 		}
 	}
 	if len(empty) == 0 || len(pieces) == 0 {
-		// if len(empty) == 0 {
 		return struct {
 			move     uint
 			location uint
 		}{}, false
 	}
 
-	cell := empty[rand.IntN(len(empty))]
+	// Try multiple times to find a valid move (to handle the first-move restriction)
+	for range 100 {
+		cell := empty[rand.IntN(len(empty))]
+		piecesIndex := rand.IntN(len(pieces))
+		piece := pieces[piecesIndex]
 
-	logger.Printf("empty: %v", empty)
-	logger.Printf("Cell:%v Pieces:%v", cell, pieces)
-	piecesIndex := rand.IntN(len(pieces))
-	piece := pieces[piecesIndex]
-	// return Detail{
-	// 	ID:     cell,
-	// 	Number: strconv.Itoa(int(piece.Number)),
-	// }, true
+		// Center is ID 5. Restriction: No 5 in center on first move.
+		if isFirstMove && cell == 5 && piece.Number == 5 {
+			continue
+		}
+
+		return struct {
+			move     uint
+			location uint
+		}{
+			move:     uint(piece.Number),
+			location: uint(cell),
+		}, true
+	}
+
 	return struct {
 		move     uint
 		location uint
-	}{
-		move:     uint(piece.Number),
-		location: uint(cell),
-	}, true
+	}{}, false
 }
 
-func NewRoom(id string) *Room {
+func NewRoom(id string, roomClosed chan string) *Room {
 	// if id == uuid.Nil {
 	// 	id = uuid.New()
 	// }
 	board := make([]Detail, 9)
 	for i := range board {
-		board[i] = Detail{Number: "-", ID: uint8(i)}
+		board[i] = Detail{Number: "-", ID: uint8(i), Owner: ""}
 	}
 
 	return &Room{
+		roomClosed:     roomClosed,
 		ID:             id,
 		Name:           "",
 		clients:        make(map[*Client]bool),
@@ -234,7 +254,7 @@ func NewRoom(id string) *Room {
 		game:           *NewGame(),
 		done:           make(chan bool),
 
-		enableBot: os.Getenv("ENABLE_BOT") != "true",
+		enableBot: false,
 		botStop:   make(map[uuid.UUID]chan struct{}),
 		botEvents: make(chan BotEvent),
 		state:     Waiting,
@@ -243,52 +263,23 @@ func NewRoom(id string) *Room {
 func (room *Room) GetRoomSize() int {
 	return len(room.clients)
 }
+
 func (room *Room) RunRoom() {
 	// bot := NewBotClient("BOT")
 	//enablebot flag that only is true on dev
 	// enableBot := os.Getenv("ENABLE_BOT") != "true"
-	logger.Printf("Room %s started. Enable bot: %v", room.ID, room.enableBot)
 	for {
 		select {
 		case <-room.done: // Stop the room gracefully
 			logger.Printf("Stopping room %s", room.ID)
 			close(room.register)
 			close(room.unregister)
-			// close(room.gamebroadcast)
-			return // Exit the loop
+			close(room.events)
+			return // Exit the room loop
 
 		case message := <-room.events:
 			room.handleMessage(message)
-			// if message.Action == SendGameAction {
-			// 	var board []Detail
-			// 	if err := json.Unmarshal(message.Data, &board); err != nil {
-			// 		logger.Printf("Error on saving board state %s", err)
-			// 		return
-			// 	}
-			// 	room.lastBoardState = board
-			// }
 
-			// logger.Println("Game Broadcast")
-
-			// logger.Println("client id", message.Sender.ID)
-			// logger.Println(room.getStatus())
-			// room.checkWinState(message)
-			// if !room.getStatus().GameOver {
-
-			// 	room.switchTurn()
-			// }
-			// remember to uncomment
-			// room.game.switchPlayer()
-			// if room.getStatus().GameOver {
-			// 	return
-			// }
-			// room.broadcastTurnUpdate()
-
-		// case message := <-room.broadcast:
-		// 	for client := range room.clients {
-		// 		client.send <- message.encode()
-
-		// 	}
 		case client := <-room.register:
 			logger.Println("Client Register")
 
@@ -296,14 +287,30 @@ func (room *Room) RunRoom() {
 			if len(room.players) < 2 {
 				room.players[client.ID] = client
 			} else {
-				room.spectators[client.ID] = client
+				// If a human joins and there's a bot, replace the bot
+				bot := room.getBot()
+				if !client.IsBot && bot != nil {
+					logger.Printf("Replacing bot %s with human player %s", bot.ID, client.ID)
+					// Synchronously remove bot and add human player
+					delete(room.players, bot.ID)
+					delete(room.game.PlayerPieces, bot.ID)
+					room.stopBotRun(bot.ID)
+					delete(room.clients, bot) // Also remove bot from general clients map
+					close(bot.send)           // Close bot's send channel
+
+					// Add the new human player
+					room.players[client.ID] = client
+					// Reset and start new game with the new player
+					room.game = *NewGame()
+					room.state = Waiting
+					room.startGame()
+
+				} else {
+					room.spectators[client.ID] = client
+				}
 			}
 			room.notifyClientJoined(client)
-			// room.broadcastGameStateToClients()
 
-			logger.Println("Player count:", len(room.players))
-
-			// }
 			//#bot auto-add bot if only one human
 			if room.enableBot && len(room.players) == 1 && room.getBot() == nil {
 				logger.Println("Scheduling bot registration for room", room.ID)
@@ -312,9 +319,6 @@ func (room *Room) RunRoom() {
 					// use same registration flow so notifyClientJoined and broadcast happen
 					room.register <- bot
 				}()
-			}
-			for user := range room.clients {
-				fmt.Println(user.ID, user.Name)
 			}
 			// if len(room.players) >= 2 || room.GetRoomSize() >= 2 {
 			// 	room.notifyFullRoom(client)
@@ -325,28 +329,26 @@ func (room *Room) RunRoom() {
 			room.broadcastGameStateToClients()
 
 			//log the player pieces
-			for _, p := range room.game.PlayerPieces {
-				logger.Printf("Player %s has pieces: %v", p.Client.Name, p.Client.ID)
-			}
-			// 	// todo: have to allow multiple clients in for spectating
-			logger.Printf("%v room size.....player count %v ,%v", room.GetRoomSize(), len(room.game.PlayerPieces), room.players)
+			// for _, p := range room.game.PlayerPieces {
+			// 	logger.Printf("Player %s has pieces: %v", p.Client.Name, p.Client.ID)
+			// }
+			// logger.Printf("%v room size.....player count %v", room.GetRoomSize(), len(room.game.PlayerPieces))
 
 		case client := <-room.unregister:
-			// logger.Printf("69:%v -%d", client.ID, room.GetRoomSize())
 			logger.Println("Client Unregister")
 			delete(room.clients, client)
-			logger.Println(room.clients[client], "does it exist?", "is it a bot?", client.IsBot)
-			delete(room.spectators, client.ID)
-			delete(room.players, client.ID)
+			wasPlayer := false
 			if _, isPlayer := room.players[client.ID]; isPlayer {
+				wasPlayer = true
 				delete(room.players, client.ID)
 				delete(room.game.PlayerPieces, client.ID)
-				// Reset game if players < 2
-
+			} else {
+				delete(room.spectators, client.ID)
 			}
+			logger.Printf("Disconnect: wasPlayer=%v, isBot=%v, playersLeft=%d", wasPlayer, client.IsBot, len(room.players))
 
-			//#bot auto-remove bot if only both is the player
-			if room.enableBot && len(room.players) == 1 && room.getBot() != nil {
+			//#bot auto-remove bot if only one left is the real player
+			if wasPlayer && len(room.players) == 1 && room.getBot() != nil {
 				logger.Println("Scheduling bot registration for removal", room.ID)
 				// this makes sense than whatever I was doing earlier
 				go func() {
@@ -373,19 +375,31 @@ func (room *Room) RunRoom() {
 			// 	}
 			// }
 
-			logger.Print("Connected Clients")
-			for c := range room.clients {
-				logger.Printf("%s---%s", c.ID, c.Name)
-			}
-			logger.Print("Connected players")
-			for _, p := range room.players {
-				logger.Printf("Player isBot:%v --> ID:%s --> %s", p.IsBot, p.ID, p.Name)
-			}
-			if len(room.players) < 2 {
+			// logger.Print("Connected Clients")
+			// for c := range room.clients {
+			// 	logger.Printf("%s---%s", c.ID, c.Name)
+			// }
+			// logger.Print("Connected players")
+			// for _, p := range room.players {
+			// 	logger.Printf("Player isBot:%v --> ID:%s --> %s", p.IsBot, p.ID, p.Name)
+			// }
+			// logger.Println("room state", room.state)
+			// logger.Println("room clients after unregister", len(room.clients))
+			// Only reset game state if a player was unregistered and player count drops below 2
+			if wasPlayer && len(room.players) < 2 {
+				// logger.Printf("Resetting game state for room %s. Players left: %d", room.ID, len(room.players))
 				room.game = *NewGame()
-				// room.assignPlayerPieces()
 				room.state = Waiting
 			}
+
+			// If the room becomes empty of human players and there's no bot, close the room
+			if len(room.clients) == 0 {
+				logger.Printf("Closing room %s due to no active clients", room.ID)
+				close(room.done) // Signal to stop the room's goroutine
+				room.roomClosed <- room.ID
+
+			}
+
 			room.broadcastGameStateToClients()
 		}
 	}
@@ -401,10 +415,15 @@ func (room *Room) assignPlayerPieces() {
 	// 	}
 	// 	logger.Printf("Assigned pieces to player %s: %v", client.ID, a)
 	// }
+	room.game.PlayerPieces = make(map[uuid.UUID]PlayerInfo)
+
 	ids := make([]uuid.UUID, 0, len(room.players))
 	for id := range room.players {
 		ids = append(ids, id)
 	}
+	rand.Shuffle(len(ids), func(i, j int) {
+		ids[i], ids[j] = ids[j], ids[i]
+	})
 	options := shuffledOptions()
 
 	for i, id := range ids {
@@ -423,11 +442,9 @@ func (room *Room) startGame() {
 		return
 	}
 	room.state = InProgress
-	// room.setStatus(false, false, false)
 	room.game = *NewGame()
 	// game, _ := json.Marshal(room.game)
 	logger.Println("Game Start")
-	// logger.Println(len(room.clients), len(room.game.PlayerPieces), room.game.CurrentPlayer)
 	message := &Message{
 		Action: StartGameAction,
 		Data:   nil, //game,
@@ -438,31 +455,8 @@ func (room *Room) startGame() {
 	}
 
 	//simplify emitting broadcasttoclients updates the state for the game to start
-	room.game.PlayerPieces = make(map[uuid.UUID]PlayerInfo)
-
-	// Collect players deterministically
-	// ids := make([]uuid.UUID, 0, len(room.players))
-	// for id := range room.players {
-	// 	ids = append(ids, id)
-	// }
-
-	// // Randomize both turn + pieces
-	// rand.Shuffle(len(ids), func(i, j int) {
-	// 	ids[i], ids[j] = ids[j], ids[i]
-	// })
-
-	// options := shuffledOptions()
-
-	// for i, id := range ids {
-	// 	client := room.players[id]
-	// 	room.game.PlayerPieces[id] = PlayerInfo{
-	// 		Pieces: options[i],
-	// 		Client: *client,
-	// 	}
-	// }
-
-	// // ✅ Valid turn (always a real player)
-	// room.game.CurrentPlayer = ids[0]
+	// room.game.PlayerPieces = make(map[uuid.UUID]PlayerInfo)
+	room.resetBoard()
 	room.assignPlayerPieces()
 	logger.Printf("Current player is %s", room.game.CurrentPlayer)
 	//#bot run bot
@@ -470,12 +464,21 @@ func (room *Room) startGame() {
 		room.runBot(bot)
 
 		room.botEvents <- BotEvent{Reason: "start-game"}
-
+		if room.game.CurrentPlayer == bot.ID {
+			room.botEvents <- BotEvent{Reason: "turn-switch"}
+		}
 	}
 	if room.game.CurrentPlayer == uuid.Nil {
 		logger.Panic("Current player is nil after startGame")
 	}
 	room.broadcastGameStateToClients()
+}
+func (room *Room) resetBoard() {
+	board := make([]Detail, 9)
+	for i := range board {
+		board[i] = Detail{Number: "-", ID: uint8(i), Owner: ""}
+	}
+	room.lastBoardState = board
 }
 func (room *Room) broadcastTurnUpdate() {
 	logger.Println("Game Updated")
@@ -502,6 +505,7 @@ func (room *Room) checkWinState(message *Message) {
 	var winner *uuid.UUID
 	if win {
 		winner = &message.Sender.ID
+		logger.Println("Game Won by:", message.Sender.Name)
 	}
 	if win || draw {
 		room.setStatus(win, true, draw, winner)
@@ -513,7 +517,6 @@ func (room *Room) checkWinState(message *Message) {
 			Target: room,
 			Sender: message.Sender,
 		}
-		logger.Println("Game Won by:", message.Sender.Name)
 
 		for client := range room.clients {
 			client.send <- message.encode()
@@ -525,16 +528,38 @@ func (room *Room) checkWinState(message *Message) {
 func (room *Room) handleMessage(message *Message) {
 	switch message.Action {
 
-	case SendGameAction:
-		var board []Detail
-		if err := json.Unmarshal(message.Data, &board); err != nil {
+	case SendGameAction: // only moves sent now not whole grid
+		// var board []Detail
+		var move MoveData
+		if err := json.Unmarshal(message.Data, &move); err != nil {
 			logger.Printf("Error on saving board state %s", err)
 			return
 		}
-		room.lastBoardState = board
-		// room.broadcast(message)
 
-		room.checkWinState(message)
+		// Server-side validation for first move rule
+		if room.game.IsFirstMove && move.Location == 5 && move.Number == 5 {
+			logger.Printf("Rejected invalid first move (5 in center) from %s", message.Sender.Name)
+			return
+		}
+
+		logger.Printf("Received move: %+v from player %s", move, message.Sender.Name)
+		room.game.IsFirstMove = false
+
+		// Apply move to existing board
+		room.lastBoardState[move.Location-1] = Detail{
+			Number: strconv.Itoa(int(move.Number)),
+			ID:     uint8(move.Location),
+			Owner:  move.PlayerId, //or use currentplayer/sender id
+		}
+		// room.broadcast(message)
+		boardJSON, _ := json.Marshal(room.lastBoardState)
+		boardMessage := &Message{
+			Action: SendGameAction,
+			Data:   boardJSON,
+			Sender: message.Sender,
+			Target: room,
+		}
+		room.checkWinState(boardMessage)
 		if !room.getStatus().GameOver {
 			room.switchTurn()
 
@@ -544,7 +569,21 @@ func (room *Room) handleMessage(message *Message) {
 		room.broadcast(message)
 
 	case StartGameAction:
+		// Only allow players to start a new game
+		if _, isPlayer := room.players[message.Sender.ID]; !isPlayer {
+			logger.Printf("Rejected StartGameAction from non-player: %s", message.Sender.ID)
+			return
+		}
 		room.startGame()
+
+	case AddBotAction:
+		if len(room.players) < 2 && room.getBot() == nil {
+			logger.Println("Manual bot registration for room", room.ID)
+			go func() {
+				bot := NewBotClient("BOT")
+				room.register <- bot
+			}()
+		}
 
 	default:
 		logger.Printf("Unknown action: %s", message.Action)

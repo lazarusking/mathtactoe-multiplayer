@@ -48,8 +48,8 @@ func (client *Client) GetID() string {
 func (client *Client) handleNewMessage(jsonMessage []byte) {
 	var message Message
 	if err := json.Unmarshal(jsonMessage, &message); err != nil {
-		logger.Printf("Error on unmarshal message %s :%v -- %s %v", err, message.Action, message.Data, message.Sender)
-		logger.Panic(err)
+		logger.Printf("Error on unmarshal message %v :%v -- %s %v", err, message.Action, message.Data, message.Sender)
+		// logger.Panic(err)
 		return
 	}
 
@@ -85,8 +85,18 @@ func (client *Client) handleNewMessage(jsonMessage []byte) {
 		client.leaveRoom(roomId)
 	case StartGameAction:
 		client.startGame(message)
+	case AddBotAction:
+		client.addBot(message)
 	default:
 		logger.Printf("Unknown action: %s", message.Action)
+	}
+}
+
+func (client *Client) addBot(message Message) {
+	roomId := message.Target.GetId()
+	if room := client.hub.findRoomByID(roomId); room != nil {
+		room.events <- &message
+		logger.Println("Found room to add bot", room.ID)
 	}
 }
 
@@ -180,19 +190,20 @@ func (client *Client) disconnect() {
 	logger.Println("Disconnect run")
 	for room := range client.rooms {
 		room.unregister <- client
-		if len(room.clients) == 0 {
-			client.hub.deleteRoom(room.ID)
-			// room.done <- true
-			close(room.done)
-			logger.Printf("Room %s has been deleted due to no active clients", room.ID)
-		}
-		logger.Printf("disconnect room logs %v", room.clients)
-		for c := range room.clients {
-			logger.Printf("room %s %s", c.Name, c.ID)
-		}
+		// logger.Printf("%v", room.GetRoomSize())
+		// if len(room.clients) == 0 {
+		// 	client.hub.deleteRoom(room.ID)
+		// 	// room.done <- true
+		// 	close(room.done)
+		// 	logger.Printf("Room %s has been deleted due to no active clients", room.ID)
+		// }
+		// logger.Printf("disconnect room logs %v", room.clients)
+		// for c := range room.clients {
+		// 	logger.Printf("room %s %s", c.Name, c.ID)
+		// }
 
 	}
-	close(client.send)
+	// close(client.send)
 	client.conn.Close()
 }
 
@@ -213,7 +224,7 @@ func (client *Client) listen() {
 			}
 			break
 		}
-		messageContent = bytes.TrimSpace(bytes.Replace(messageContent, newline, space, -1))
+		messageContent = bytes.TrimSpace(bytes.ReplaceAll(messageContent, newline, space))
 		client.handleNewMessage(messageContent)
 	}
 }
@@ -236,21 +247,24 @@ func (client *Client) write() {
 			}
 			w, err := client.conn.NextWriter(websocket.TextMessage)
 			if err != nil {
+				logger.Printf("NextWriter error for %s: %v", client.ID, err)
 				return
 			}
 			w.Write(message)
 			// Add queued chat messages to the current websocket message.
 			n := len(client.send)
-			for i := 0; i < n; i++ {
+			for range n {
 				w.Write(newline)
 				w.Write(<-client.send)
 			}
 			if err := w.Close(); err != nil {
+				logger.Printf("Writer close error for %s: %v", client.ID, err)
 				return
 			}
 		case <-ticker.C:
 			client.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := client.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				logger.Printf("Ping error for %s: %v", client.ID, err)
 				return
 			}
 		}

@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -52,12 +56,36 @@ var (
 )
 
 func main() {
+	logger.Println("Starting server on port 8080...")
 	hub := NewHub()                //decl of hub
 	go hub.monitorClientsChannel() // Start a goroutine for receiving channel messages
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		handleWebSocket(hub, w, r)
-	})
-	http.ListenAndServe(envPortOr("8080"), nil)
+	server := &http.Server{
+		Addr: envPortOr("8080"),
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handleWebSocket(hub, w, r)
+		}),
+	}
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		logger.Println("\nShutting down server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(ctx); err != nil {
+			logger.Printf("Server forced to shutdown: %v", err)
+		}
+		os.Exit(0)
+	}()
+	// http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	// 	handleWebSocket(hub, w, r)
+	// })
+	// http.ListenAndServe(envPortOr("8080"), nil)
+	logger.Printf("Server listening on %s", envPortOr("8080"))
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		logger.Printf("Server error: %v", err)
+	}
 }
 func envPortOr(port string) string {
 	// If `PORT` variable in environment exists, return it

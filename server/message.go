@@ -21,6 +21,7 @@ const (
 	JoinRoomPrivateAction ActionType = "join-room-private"
 	RoomJoinedAction      ActionType = "room-joined"
 	GameStateSyncAction   ActionType = "state-sync"
+	AddBotAction          ActionType = "add-bot"
 )
 
 type Message struct {

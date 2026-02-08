@@ -3,14 +3,15 @@ import type { WSMessage } from '@/interface'
 import { websocket } from '@/lib/socket'
 import router from '@/router'
 import { useWebSocket } from '@vueuse/core'
-import { InfoIcon } from 'lucide-vue-next'
-import { defineAsyncComponent, onMounted, ref, watch, watchEffect } from 'vue'
+import { Info, Rocket, MessageCircle, ChevronDown } from 'lucide-vue-next'
+import { defineAsyncComponent, onMounted, ref, watch } from 'vue'
+
 const HelpModal = defineAsyncComponent(() => import('./modal/HelpModal.vue'))
 
 const roomId = ref('')
 const playerName = ref('')
 const showHelp = ref(false)
-const activeTab = ref('create')
+const activeTab = ref<'join' | 'create'>('create')
 
 onMounted(() => {
   const storedUsername = localStorage.getItem('username')
@@ -27,9 +28,7 @@ const { data, send } = useWebSocket(websocket.url, {
 watch(playerName, () => {
   localStorage.setItem('username', playerName.value)
 })
-watchEffect(() => {
-  console.log(data)
-})
+
 
 function createRoom() {
   // const data = { action: 'join-room', message: null, sender: { name: playerName.value } }
@@ -79,7 +78,7 @@ function closeModal() {
 function joinGame() {
   if (roomId.value) {
     // const data = { action: 'join-room', message: null, sender: { name: playerName.value } }
-    router.push({ name: "room", params: { username: 'eduardo', room: roomId.value } })
+    router.push({ name: "room", params: { username: playerName.value, room: roomId.value } })
   }
 }
 
@@ -98,114 +97,85 @@ const showSettings = () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-gray-100 flex flex-col">
-    <!-- <div @click="showHelp = !showHelp" class="flex mx-auto container max-w-screen-md py-1 sm:py-2 sm:px-6 lg:px-8">
-      <div class="ml-auto flex flex-wrap items-center justify-between">
-        <button type="button"
-          class="text-white items-center text-lg p-3 font-semibold rounded hover:bg-blue-500 hover:text-white">
-          <InfoIcon class="h-6 w-6" />
-          <span class="sr-only">How to play?</span>
-        </button>
-      </div>
-    </div> -->
+  <div
+    class="min-h-screen flex flex-col items-center justify-center p-6 bg-[#F8FAFC] dark:bg-background-dark transition-colors duration-300 relative overflow-hidden">
+    <!-- Background Decor -->
+    <div
+      class="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 dark:bg-primary/10 blur-[120px] rounded-full -z-10 pointer-events-none">
+    </div>
+    <div
+      class="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/5 dark:bg-accent/10 blur-[120px] rounded-full -z-10 pointer-events-none">
+    </div>
 
     <HelpModal :show-help="showHelp" @close-modal="closeModal" />
 
-    <div class="flex-grow flex items-center justify-center p-4">
-      <div class="w-full max-w-md">
-        <div class="flex justify-center items-center space-x-2 mb-6">
-          <h1
-            class="text-4xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-green-400">
-            TicTacToe Math
-          </h1>
-          <button @click="showHelp = true"
-            class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200"
-            aria-label="Information">
-            <InfoIcon class="h-6 w-6" />
-            <span class="sr-only">How to play?</span>
+    <header class="mb-12 text-center">
+      <div class="flex items-center justify-center gap-2 mb-4">
+        <h1 class="text-5xl md:text-6xl font-extrabold font-display tracking-tight">
+          <span class="text-secondary">TicTac</span>
+          <span class="text-primary">Math</span>
+        </h1>
+        <button @click="showHelp = true" class="text-slate-400 hover:text-primary transition-colors">
+          <Info class="w-8 h-8" />
+        </button>
+      </div>
+      <div
+        class="inline-flex items-center px-4 py-1.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-sm font-semibold tracking-wide uppercase">
+        Multiplayer
+      </div>
+    </header>
+
+    <main class="w-full max-w-md">
+      <div
+        class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700/50 shadow-2xl rounded-[2rem] overflow-hidden transition-all duration-300">
+        <!-- Tabs -->
+        <div class="flex border-b border-slate-200 dark:border-slate-700/50">
+          <button @click="activeTab = 'join'"
+            :class="['flex-1 py-5 text-sm font-bold transition-colors relative', activeTab === 'join' ? 'text-primary' : 'text-slate-400 dark:text-slate-500']">
+            Join Game
+            <span v-if="activeTab === 'join'"
+              class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></span>
+          </button>
+          <button @click="activeTab = 'create'"
+            :class="['flex-1 py-5 text-sm font-bold transition-colors relative', activeTab === 'create' ? 'text-primary' : 'text-slate-400 dark:text-slate-500']">
+            Create Game
+            <span v-if="activeTab === 'create'"
+              class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></span>
           </button>
         </div>
-        <div class="text-center mb-6">
-          <span class="bg-gray-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">Multiplayer</span>
-        </div>
 
-        <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-6">
-          <div class="mb-6">
-            <div class="flex border-b border-gray-700">
-              <button @click="activeTab = 'join'"
-                :class="['flex-1 py-2 px-4 focus:outline-none transition-colors duration-200',
-                  activeTab === 'join' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-gray-200']">
-                Join Game
-              </button>
-              <button @click="activeTab = 'create'"
-                :class="['flex-1 py-2 px-4 focus:outline-none transition-colors duration-200',
-                  activeTab === 'create' ? 'border-b-2 border-green-500 text-green-400' : 'text-gray-400 hover:text-gray-200']">
-                Create Game
-              </button>
-            </div>
-          </div>
-
-          <div v-if="activeTab === 'join'">
-            <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-200 mb-2" for="room-id">
+        <!-- Tab Content -->
+        <div class="p-8">
+          <div class="space-y-8">
+            <div v-if="activeTab === 'join'" class="space-y-2">
+              <label class="block text-sm font-bold text-slate-600 dark:text-slate-400 px-1" for="room-id">
                 Room ID
               </label>
-              <input v-model="roomId" required
-                class="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                id="room-id" placeholder="Enter Room ID" type="text" />
+              <input v-model="roomId" type="text" id="room-id"
+                class="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-200 dark:border-slate-700/50 rounded-2xl text-slate-800 dark:text-white focus:border-primary focus:ring-0 transition-all outline-none font-medium placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                placeholder="Enter Room ID" />
             </div>
-            <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-200 mb-2" for="player-name">
+
+            <div class="space-y-2">
+              <label class="block text-sm font-bold text-slate-600 dark:text-slate-400 px-1" for="player-name">
                 Your Name
               </label>
-              <input v-model="playerName" required
-                class="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                id="player-name" placeholder="Enter your name" type="text" />
+              <input v-model="playerName" type="text" id="player-name"
+                class="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-200 dark:border-slate-700/50 rounded-2xl text-slate-800 dark:text-white focus:border-primary focus:ring-0 transition-all outline-none font-medium placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                placeholder="Enter your name" />
             </div>
-            <button @click="joinGame"
-              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200 ease-in-out">
-              Join Game
+
+            <button @click="activeTab === 'create' ? createRoom() : joinGame()"
+              class="w-full bg-primary hover:bg-opacity-90 text-white font-bold py-5 px-6 rounded-2xl text-lg shadow-lg shadow-primary/20 transition-all transform active:scale-[0.98] flex items-center justify-center gap-2">
+              <span>{{ activeTab === 'create' ? 'Start New Match' : 'Find Match' }}</span>
+              <Rocket class="w-5 h-5" />
             </button>
           </div>
-
-          <form v-else @submit.prevent="createRoom">
-            <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-200 mb-2" for="create-player-name">
-                Your Name
-              </label>
-              <input v-model="playerName" required
-                class="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 transition duration-200"
-                id="create-player-name" placeholder="Enter your name" type="text" />
-            </div>
-            <button type="submit"
-              class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200 ease-in-out">
-              Create New Game
-            </button>
-          </form>
         </div>
-
-        <!-- <div class="mt-8 flex justify-center space-x-4">
-          <button @click="showLeaderboard"
-            class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200"
-            aria-label="Leaderboard">
-            <Trophy class="h-6 w-6" />
-          </button>
-          <button @click="showOnlinePlayers"
-            class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200"
-            aria-label="Players Online">
-            <Users class="h-6 w-6" />
-          </button>
-          <button @click="showSettings"
-            class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200" aria-label="Settings">
-            <Settings class="h-6 w-6" />
-          </button>
-          <button @click="showHelp = true"
-            class="text-gray-400 hover:text-gray-200 focus:outline-none transition duration-200"
-            aria-label="Information">
-            <InfoIcon class="h-6 w-6" />
-          </button>
-        </div> -->
       </div>
-    </div>
+
+
+    </main>
+
   </div>
 </template>

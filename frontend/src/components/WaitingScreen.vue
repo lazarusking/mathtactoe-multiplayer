@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Copy, InfoIcon } from 'lucide-vue-next';
+import { Copy } from 'lucide-vue-next';
 import { onMounted, onUnmounted, ref } from 'vue';
 
 const props = defineProps<{
@@ -37,21 +37,17 @@ const copyRoomCode = () => {
     <div class="flex flex-col items-center justify-between py-12 px-6 w-full max-w-[1600px] mx-auto text-slate-100">
         <!-- Header matching Lobby.tsx -->
         <header class="text-center">
-            <h1 class="text-3xl font-extrabold flex items-center gap-3">
+            <!-- <h1 class="text-3xl font-extrabold flex items-center gap-3">
                 <span class="text-cyan-500">TicTacToe</span>
                 <span class="text-primary">Math</span>
                 <InfoIcon class="w-5 h-5 text-slate-400" />
-            </h1>
-            <div
-                class="mt-4 px-4 py-1.5 bg-slate-200 dark:bg-slate-800 rounded-full text-xs font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-400">
-                Multiplayer Mode
-            </div>
+            </h1> -->
         </header>
 
         <!-- Main Card Content -->
         <main class="w-full max-w-xl">
             <div
-                class="bg-white dark:bg-surface-dark rounded-[3rem] p-10 md:p-14 shadow-2xl border border-slate-100 dark:border-slate-700 text-center relative overflow-hidden w-full">
+                class="bg-white dark:bg-surface-dark rounded-[3rem] p-5 md:p-14 shadow-2xl border border-slate-100 dark:border-slate-700 text-center relative overflow-hidden w-full">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-bl-full pointer-events-none"></div>
                 <div class="absolute bottom-0 left-0 w-24 h-24 bg-primary/5 rounded-tr-full pointer-events-none"></div>
 

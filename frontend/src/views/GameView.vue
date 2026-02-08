@@ -12,13 +12,13 @@ import {
     BookOpen,
     Calculator,
     CheckCircle,
-    Link,
     MousePointer2,
     Plus,
     RefreshCw,
+    Share2,
     Trophy
 } from 'lucide-vue-next'
-import { computed, onBeforeMount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeMount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 /**
@@ -31,7 +31,7 @@ const randomGallery = loaders[Math.floor(Math.random() * loaders.length)]
 
 const username = ref(localStorage.getItem('username') || '')
 const chatMessages = ref<{ sender: string, text: string, id: string }[]>([])
-const showChat = ref(true)
+const showChat = ref(false)
 
 const options = () => Array.from({ length: 9 }, (_, i) => ({ id: i + 1, number: '-', owner: '' }))
 const tictacGrid = ref<Piece[]>(options())
@@ -157,7 +157,7 @@ const p2Info = computed(() => {
 const playerNameLabel = computed(() => {
     if (isSpectator.value) {
         const name = gameState.players[gameState.currentPlayer]?.client.name || '...'
-        return `Spectating Turn: ${name}`
+        return `Spectating: ${name}`
     }
     const oppName = p2Info.value.name
     return isCurrentPlayer.value ? `Your Turn` : `Waiting for ${oppName}`
@@ -173,6 +173,8 @@ const winnerName = computed(() => {
     const winnerId = gameState.gameStatus.winner
     return winnerId ? (gameState.players[winnerId]?.client.name ?? "Unknown") : null
 })
+
+
 
 /**
  * HANDLER FUNCTIONS
@@ -308,7 +310,7 @@ watch(
             sender: { name: username.value }
         }))
     },
-    { immediate: true }
+    { immediate: true, deep: true }
 )
 </script>
 
@@ -322,11 +324,26 @@ watch(
 
         <!-- View 2: Match In Progress -->
         <template v-else>
-            <div
-                class="min-h-screen py-6 px-4 md:px-8 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10 text-slate-100">
+            <!-- Mobile Header Navigation -->
+            <header
+                class="sticky top-0 z-40 bg-transparent px-6 py-5 flex items-center justify-between lg:hidden backdrop-blur-md dark:border-slate-800">
+                <h1 class="text-2xl font-display font-bold text-white tracking-wide">
+                    TicTac<span class="text-primary">Math</span>
+                </h1>
+                <div class="flex items-center gap-2">
+                    <button @click="shareRoom"
+                        class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 active:scale-90 transition-transform">
+                        <Share2 class="w-5 h-5" />
+                    </button>
 
-                <!-- Left Sidebar: Rules & Info -->
-                <div class="lg:col-span-3 space-y-6">
+                </div>
+            </header>
+
+            <div
+                class="min-h-screen py-6 lg:py-10 px-4 md:px-8 max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 relative text-slate-100">
+
+                <!-- Left Sidebar: Hidden on Mobile -->
+                <div class="hidden lg:block lg:col-span-3 space-y-6">
                     <div class="flex items-center space-x-3 mb-6">
                         <div
                             class="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary to-green-600 flex items-center justify-center shadow-lg">
@@ -385,15 +402,12 @@ watch(
                 </div>
 
                 <!-- Main Board Section -->
-                <div class="lg:col-span-6 flex flex-col items-center justify-center">
-                    <!-- Score Board / Status Bar -->
+                <div class="col-span-1 lg:col-span-6 flex flex-col items-center">
+                    <!-- Concept Scoreboard -->
                     <div
-                        class="w-full max-w-md bg-white dark:bg-surface-dark rounded-3xl p-5 mb-8 shadow-xl flex items-center justify-between border border-slate-100 dark:border-slate-700">
-                        <!-- Left: Player 1 / You -->
-                        <div class="flex flex-col items-center px-4">
-                            <span
-                                class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 truncate max-w-[80px]">{{
-                                    p1Info.name }}</span>
+                        class="w-full max-w-sm bg-slate-800/40 rounded-3xl p-6 mb-10 flex items-center justify-between border border-white/5 backdrop-blur-sm">
+                        <div class="flex flex-col items-center gap-2">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">You</span>
                             <div
                                 :class="['w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all', (gameState.currentPlayer === p1Info.id) ? 'border-primary bg-primary/10 shadow-[0_0_15px_rgba(45,238,121,0.2)]' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 opacity-50']">
                                 <span class="text-2xl font-bold text-primary">{{ p1Info.name === 'You' ?
@@ -411,19 +425,30 @@ watch(
                             </div>
                         </div>
 
-                        <!-- Right: Player 2 / Opponent -->
-                        <div class="flex flex-col items-center px-4">
-                            <span
-                                class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 truncate max-w-[80px]">
-                                {{ p2Info.name }}
-                            </span>
+                        <div class="flex flex-col items-center gap-2">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Bot</span>
                             <div
                                 :class="['w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all', (gameState.currentPlayer === p2Info.id) ? 'border-accent bg-accent/10 shadow-[0_0_15px_rgba(251,113,133,0.2)]' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 opacity-50']">
                                 <span class="text-2xl font-bold text-accent">{{ p2Info.name.charAt(0) }}</span>
                             </div>
                         </div>
                     </div>
-
+                    <!-- Spectator match results  -->
+                    <Transition name="fade">
+                        <div v-if="gameState.gameStatus.gameOver && isSpectator"
+                            class="mb-6 w-full max-w-sm animate-in zoom-in duration-500">
+                            <div
+                                class="bg-indigo-500/10 border border-indigo-500/30 rounded-[1.5rem] py-3 px-6 text-center">
+                                <span
+                                    class="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-300 block mb-1">Match
+                                    Results</span>
+                                <p class="text-lg font-bold text-white">
+                                    <template v-if="gameState.gameStatus.gameDraw">🤝 Match Drawn</template>
+                                    <template v-else>🏆 {{ winnerName }} Won!</template>
+                                </p>
+                            </div>
+                        </div>
+                    </Transition>
                     <!-- 3x3 Skeletal Grid -->
                     <div
                         class="relative p-6 bg-slate-200/30 dark:bg-slate-900/60 rounded-[4rem] shadow-2xl border-2 border-slate-100 dark:border-slate-800 backdrop-blur-md">
@@ -441,7 +466,7 @@ watch(
                                 <template v-if="y.number !== '-'">
                                     <div class="flex flex-col items-center scale-up">
                                         <span
-                                            :class="['text-4xl sm:text-5xl md:text-6xl font-black', (y.owner === p1Info.id ? 'text-primary' : 'text-accent')]">
+                                            :class="['text-3xl lg:text-6xl font-black', (y.owner === p1Info.id ? 'text-primary' : 'text-accent')]">
                                             {{ y.number }}
                                         </span>
                                         <div
@@ -452,9 +477,9 @@ watch(
                                 <template v-else>
                                     <div class="flex items-center justify-center">
                                         <CheckCircle v-if="gameState.selectedGrid.id === y.id"
-                                            class="w-8 h-8 text-primary opacity-60" />
+                                            class="w-6 h-6 lg:w-8 lg:h-8 text-primary opacity-60" />
                                         <Plus v-else
-                                            class="w-8 h-8 text-slate-300 dark:text-slate-700 opacity-20 group-hover:opacity-60 transition-opacity" />
+                                            class="w-6 h-6 lg:w-8 lg:h-8 text-slate-300 dark:text-slate-700 opacity-20 group-hover:opacity-60 transition-opacity" />
                                     </div>
                                 </template>
                             </button>
@@ -466,7 +491,9 @@ watch(
                         :class="{ 'opacity-50 pointer-events-none grayscale-[0.5]': !gameState.isSelecting }">
                         <p
                             class="text-center text-xs font-black text-slate-500 dark:text-slate-400 mb-5 uppercase tracking-[0.3em]">
-                            {{ gameState.isSelecting ? 'Pick Your Number' : 'Select a Slot First' }}
+                            {{ isSpectator ? 'Spectator Mode' : gameState.isSelecting ? 'Pick Your Number' : "Select a\
+                            Slot First" }}
+
                         </p>
                         <div class="flex flex-wrap justify-center gap-4">
                             <button v-for="i in (gameState.players[currentPlayerId]?.pieces || [])" :key="i.id"
@@ -478,16 +505,16 @@ watch(
                     </div>
                 </div>
 
-                <!-- Right Sidebar -->
-                <div class="lg:col-span-3 space-y-6">
+                <!-- Right Sidebar: Hidden on Mobile -->
+                <div class="hidden lg:block lg:col-span-3 space-y-6">
                     <div
                         class="bg-white dark:bg-surface-dark rounded-3xl p-6 shadow-xl border border-slate-100 dark:border-slate-700">
                         <h2 class="text-xl font-bold text-slate-800 dark:text-white mb-6">Controls</h2>
                         <div class="space-y-4">
                             <button @click="shareRoom"
                                 class="w-full py-4 px-6 rounded-2xl bg-purple-700 border-2 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all flex items-center justify-between group">
-                                <span>Share Invite</span>
-                                <Link class="w-5 h-5 text-slate-400 group-hover:text-primary" />
+                                <span>Share Room</span>
+                                <Share2 class="w-5 h-5 text-slate-400 group-hover:text-primary" />
                             </button>
                             <button @click="playAgain"
                                 class="w-full py-4 px-6 rounded-2xl bg-primary/90 text-white shadow-xl shadow-primary/20 font-bold hover:brightness-105 transition-all flex items-center justify-between group">
@@ -499,7 +526,7 @@ watch(
                     </div>
 
                     <div
-                        class="bg-white dark:bg-surface-dark rounded-3xl flex flex-col h-[350px] shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden relative">
+                        :class="[{ 'hidden': !showChat }, 'bg-white dark:bg-surface-dark rounded-3xl flex flex-col h-[350px] shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden relative']">
                         <Chat v-if="showChat" class="h-full" :playerID="WSState.clientID" :messages="chatMessages"
                             @send-message="sendChatMessage" @toggle="toggleChat" :users="WSState.totalCount" />
                     </div>
@@ -507,12 +534,12 @@ watch(
                     <button @click="handleExit"
                         class="w-full py-4 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2">
                         <ArrowLeft class="w-4 h-4" />
-                        Exit to Lobby
+                        Leave game
                     </button>
                 </div>
 
-                <GameWinModal v-if="gameState.gameStatus.gameOver" :won="didIWin" :draw="gameState.gameStatus.gameDraw"
-                    :winner="winnerName" @play-again="playAgain" />
+                <GameWinModal v-if="gameState.gameStatus.gameOver && !isSpectator" :won="didIWin"
+                    :draw="gameState.gameStatus.gameDraw" :winner="winnerName" @play-again="playAgain" />
             </div>
         </template>
 
@@ -524,7 +551,8 @@ watch(
         <Chat class="inset-0 md:hidden block absolute bg-gray-900 bg-opacity-95 z-10" v-if="showChat"
             :playerID="WSState.clientID" :messages="chatMessages" @send-message="sendChatMessage" @toggle="toggleChat"
             :users="WSState.totalCount" />
-        <FloatingChatButton v-if="!showChat && playerIds.length >= 2" @toggle="toggleChat" />
+
+        <FloatingChatButton v-if="!showChat" @toggle="toggleChat" />
 
         <!-- Toast / Notification Layer -->
         <Transition>

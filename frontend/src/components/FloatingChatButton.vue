@@ -87,7 +87,7 @@ const el = ref<HTMLElement | null>(null)
 
 <template>
   <button aria-label="floating chat button" ref="el" @click="$emit('toggle')" :style="buttonPosition.x !== 0 && buttonPosition.y !== 0
-    ? { left: `${buttonPosition.x - 100}px`, top: `${buttonPosition.y - 100}px`, position: 'fixed', }
+    ? { left: `${buttonPosition.x - 100}px`, top: `${buttonPosition.y - 100}px`, position: 'fixed', touchAction: 'none' }
     : { right: `${buttonPosition.x}px`, top: `${buttonPosition.y}px`, position: 'fixed' }"
     @touchstart.capture="startDrag" @mousedown.capture="startDrag"
     class="fixed md:hidden block bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 outline-none">

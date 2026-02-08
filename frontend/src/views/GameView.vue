@@ -315,7 +315,7 @@ watch(
 </script>
 
 <template>
-    <div class="min-h-screen bg-[#F8FAFC] dark:bg-background-dark">
+    <div class="h-dynamic-screen bg-[#F8FAFC] dark:bg-background-dark">
         <!-- View 1: Lobby (Waiting for Opponent) -->
         <template v-if="playerIds.length < 2">
             <WaitingScreen :random-gallery="randomGallery" :room-code="(route.params.room as string)"
@@ -326,7 +326,7 @@ watch(
         <template v-else>
             <!-- Mobile Header Navigation -->
             <header
-                class="sticky top-0 z-40 bg-transparent px-6 py-5 flex items-center justify-between lg:hidden backdrop-blur-md dark:border-slate-800">
+                class="sticky top-0 bg-transparent px-6 py-5 flex items-center justify-between lg:hidden backdrop-blur-md dark:border-slate-800">
                 <h1 class="text-2xl font-display font-bold text-white tracking-wide">
                     TicTac<span class="text-primary">Math</span>
                 </h1>
@@ -548,7 +548,7 @@ watch(
             :users="WSState.totalCount" />
 
         <!-- mobile size -->
-        <Chat class="inset-0 md:hidden block absolute bg-gray-900 bg-opacity-95 z-10" v-if="showChat"
+        <Chat class="h-dynamic-screen inset-0 md:hidden block absolute bg-gray-900 bg-opacity-95 z-10" v-if="showChat"
             :playerID="WSState.clientID" :messages="chatMessages" @send-message="sendChatMessage" @toggle="toggleChat"
             :users="WSState.totalCount" />
 

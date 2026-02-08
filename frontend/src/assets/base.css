@@ -83,6 +83,15 @@ body {
   font-family: 'Plus Jakarta Sans', sans-serif;
 } */
 
+.h-dynamic-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  /* Fallback: applies height: 100vh */
+  height: 100dvh;
+  /* Preferred: applies height: 100dvh */
+}
+
 @keyframes float {
 
   0%,

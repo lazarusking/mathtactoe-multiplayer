@@ -34,15 +34,8 @@ const copyRoomCode = () => {
 </script>
 
 <template>
-    <div class="flex flex-col items-center justify-between py-12 px-6 w-full max-w-[1600px] mx-auto text-slate-100">
-        <!-- Header matching Lobby.tsx -->
-        <header class="text-center">
-            <!-- <h1 class="text-3xl font-extrabold flex items-center gap-3">
-                <span class="text-cyan-500">TicTacToe</span>
-                <span class="text-primary">Math</span>
-                <InfoIcon class="w-5 h-5 text-slate-400" />
-            </h1> -->
-        </header>
+    <div
+        class="flex flex-col items-center justify-center py-12 px-6 w-full h-full max-w-[1600px] mx-auto text-slate-100">
 
         <!-- Main Card Content -->
         <main class="w-full max-w-xl">

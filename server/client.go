@@ -189,20 +189,29 @@ func (client *Client) disconnect() {
 	client.hub.unregister <- client // Unregister client from hub and rooms
 	logger.Println("Disconnect run")
 	for room := range client.rooms {
-		room.unregister <- client
-		// logger.Printf("%v", room.GetRoomSize())
-		// if len(room.clients) == 0 {
-		// 	client.hub.deleteRoom(room.ID)
-		// 	// room.done <- true
-		// 	close(room.done)
-		// 	logger.Printf("Room %s has been deleted due to no active clients", room.ID)
-		// }
-		// logger.Printf("disconnect room logs %v", room.clients)
-		// for c := range room.clients {
-		// 	logger.Printf("room %s %s", c.Name, c.ID)
-		// }
-
+		select {
+		case room.unregister <- client:
+		default:
+			// Room unregister channel is likely closed, or no receiver is ready.
+			// This client will be cleaned up by the room's main loop if the room is still active.
+			logger.Printf("Attempted to unregister client %s from room %s, but channel was closed or blocked.\n", client.ID, room.ID)
+		}
 	}
+	// for room := range client.rooms {
+	// 	room.unregister <- client
+	// logger.Printf("%v", room.GetRoomSize())
+	// if len(room.clients) == 0 {
+	// 	client.hub.deleteRoom(room.ID)
+	// 	// room.done <- true
+	// 	close(room.done)
+	// 	logger.Printf("Room %s has been deleted due to no active clients", room.ID)
+	// }
+	// logger.Printf("disconnect room logs %v", room.clients)
+	// for c := range room.clients {
+	// 	logger.Printf("room %s %s", c.Name, c.ID)
+	// }
+
+	// }
 	// close(client.send)
 	client.conn.Close()
 }

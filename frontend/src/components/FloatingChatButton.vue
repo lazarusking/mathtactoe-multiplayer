@@ -1,25 +1,29 @@
 <script setup lang="ts">
 import { MessageSquare } from 'lucide-vue-next';
-import { onMounted, onUnmounted, ref } from 'vue';
-defineEmits<{
+import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
+
+const emit = defineEmits<{
   (e: 'toggle'): void;
 }>();
-let windowWidth = ref(window.innerWidth)
-let windowHeight = ref(window.innerHeight)
+
+const windowWidth = ref(window.innerWidth)
+const windowHeight = ref(window.innerHeight)
 const buttonPosition = ref({ x: windowWidth.value - 20, y: windowHeight.value - 20 })
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
+
 const savePosition = () => {
   localStorage.setItem('buttonPosition', JSON.stringify(buttonPosition.value));
 };
+
 const startDrag = (event: TouchEvent | MouseEvent) => {
   isDragging.value = true;
-  let point;
-  if (typeof TouchEvent !== 'undefined' && event instanceof TouchEvent) {
-    point = event.touches[0];
-  } else {
-    point = event as MouseEvent;
-  }
+  const point =
+    typeof TouchEvent !== 'undefined' && event instanceof TouchEvent
+      ? event.touches[0]
+      : (event as MouseEvent);
+
+  if (!point) return;
 
   dragOffset.value = {
     x: point.clientX - buttonPosition.value.x,
@@ -29,12 +33,12 @@ const startDrag = (event: TouchEvent | MouseEvent) => {
 
 const onDrag = (event: TouchEvent | MouseEvent) => {
   if (isDragging.value) {
-    let point;
-    if (typeof TouchEvent !== 'undefined' && event instanceof TouchEvent) {
-      point = event.touches[0];
-    } else {
-      point = event as MouseEvent;
-    }
+    const point =
+      typeof TouchEvent !== 'undefined' && event instanceof TouchEvent
+        ? event.touches[0]
+        : (event as MouseEvent);
+
+    if (!point) return;
 
     buttonPosition.value = {
       x: point.clientX - dragOffset.value.x,
@@ -46,6 +50,20 @@ const onDrag = (event: TouchEvent | MouseEvent) => {
 const endDrag = () => {
   isDragging.value = false;
   savePosition();
+};
+
+const handleKeyDown = (event: KeyboardEvent) => {
+  if (event.key === '/') {
+    // Don't toggle if the user is typing in an input or textarea
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      return;
+    }
+    event.preventDefault();
+    emit('toggle');
+  } else if (event.key === 'Escape') {
+    emit('toggle');
+  }
 };
 
 onMounted(() => {
@@ -61,6 +79,9 @@ onMounted(() => {
   // Mouse event listeners
   document.addEventListener('mousemove', onDrag);
   document.addEventListener('mouseup', endDrag);
+
+  // Keyboard shortcut listener
+  window.addEventListener('keydown', handleKeyDown);
 });
 
 onUnmounted(() => {
@@ -71,10 +92,12 @@ onUnmounted(() => {
   // Remove mouse event listeners
   document.removeEventListener('mousemove', onDrag);
   document.removeEventListener('mouseup', endDrag);
+
+  // Remove keyboard shortcut listener
+  window.removeEventListener('keydown', handleKeyDown);
 });
 
-
-const el = ref<HTMLElement | null>(null)
+const el = useTemplateRef('el')
 
 // `style` will be a helper computed for `left: ?px; top: ?px;`
 // const { x, y, style, position } = useDraggable(el, {
@@ -83,7 +106,6 @@ const el = ref<HTMLElement | null>(null)
 // console.log(style.value, position.value)
 
 </script>
-<!-- class="bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"> -->
 
 <template>
   <button aria-label="floating chat button" ref="el" @click="$emit('toggle')" :style="buttonPosition.x !== 0 && buttonPosition.y !== 0

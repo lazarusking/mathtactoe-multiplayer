@@ -50,16 +50,6 @@ export interface GameStatePayload {
   totalCount: number;
 }
 
-type Action =
-  | 'update-game'
-  | 'game-status'
-  | 'start-game'
-  | 'send-message'
-  | 'create-room'
-  | 'join-room'
-  | 'leave-room'
-  | 'send-game'
-
 export type WSAction =
   | 'join-room'
   | 'create-room'

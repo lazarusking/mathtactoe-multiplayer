@@ -1,24 +1,20 @@
 <script setup lang="ts">
-import { useLocalStorage } from '@vueuse/core';
 import { SendIcon, XIcon } from 'lucide-vue-next';
 import { nextTick, onMounted, ref } from 'vue';
 
 const props = defineProps<{
-  playerID: string;
-  messages: { sender: string; text: string, id: string }[];
+  playerID: string
+  messages: { sender: string; text: string; id: string }[]
   users: number
-}>();
+}>()
 
 const emit = defineEmits<{
-  (e: 'sendMessage', message: string): void;
-  (e: 'toggle'): void;
-}>();
-
-
+  (e: 'sendMessage', message: string): void
+  (e: 'toggle'): void
+}>()
 
 const newMessage = ref('')
-const messageList = ref<HTMLDivElement | null>(null);
-const username = useLocalStorage('username', '')
+const messageList = ref<HTMLDivElement | null>(null)
 
 const sendMessage = () => {
   if (newMessage.value.trim()) {
@@ -26,7 +22,7 @@ const sendMessage = () => {
     //   sender: "You",
     //   text: newMessage.value.trim()
     // })
-    emit('sendMessage', newMessage.value);
+    emit('sendMessage', newMessage.value)
 
     newMessage.value = ''
   }
@@ -34,15 +30,6 @@ const sendMessage = () => {
 }
 
 // const chatContainer = ref<HTMLDivElement | null>(null);
-
-
-// const sendMessage = () => {
-//   if (newMessage.value.trim()) {
-//     emit('sendMessage', newMessage.value);
-//     newMessage.value = '';
-//   }
-//   scrollToBottom()
-// };
 
 // const scrollToBottom = () => {
 //   if (chatContainer.value) {
@@ -60,7 +47,12 @@ const scrollToBottom = async () => {
 const shouldShowSender = (index: number) => {
   if (index === 0) return true
   const prevMessage = props.messages[index - 1]
-  return prevMessage.id !== props.messages[index].id || prevMessage.sender === 'system'
+  const currentMessage = props.messages[index]
+  return (
+    prevMessage &&
+    currentMessage &&
+    (prevMessage.id !== currentMessage.id || prevMessage.sender === 'system')
+  )
 }
 
 // const shouldShowAvatar = (index: number) => {
@@ -68,9 +60,15 @@ const shouldShowSender = (index: number) => {
 // }
 
 const isLastMessageFromSameSender = (index: number) => {
-  return index < props.messages.length - 1 && props.messages[index + 1].sender === props.messages[index].sender
+  const currentMessage = props.messages[index]
+  const nextMessage = props.messages[index + 1]
+  return (
+    index < props.messages.length - 1 &&
+    currentMessage &&
+    nextMessage &&
+    nextMessage.sender === currentMessage.sender
+  )
 }
-
 
 onMounted(() => {
   scrollToBottom()
@@ -78,25 +76,25 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="bg-gray-900 text-white flex flex-col shadow-xl">
+  <div class="bg-card/50 text-foreground flex flex-col h-full">
     <!-- Chat Header -->
-    <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+    <div class="p-4 border-b border-border/50 flex items-center justify-between">
       <h2 class="text-lg font-semibold">Chat</h2>
-      <div class="flex items-center text-sm text-gray-400">
-        <div class="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+      <div class="flex items-center text-sm text-muted-foreground">
+        <div class="w-2 h-2 rounded-full bg-primary mr-2"></div>
         <span>{{ users }} online</span>
       </div>
-      <button @click="$emit('toggle')" class="text-gray-400 hover:text-white transition-colors">
+      <button class="text-muted-foreground hover:text-foreground transition-colors" @click="$emit('toggle')">
         <XIcon :size="20" />
       </button>
     </div>
 
     <!-- Message List -->
-    <div class="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin" ref="messageList">
+    <div ref="messageList" class="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin">
       <div v-for="(message, index) in messages" :key="index" class="flex flex-col space-y-1">
         <div v-if="message.sender === 'system'" class="w-full flex justify-center">
-
-          <span class="text-xs text-slate-400 bg-slate-200 dark:bg-white/5 px-2 py-1 rounded-md">{{ message.text
+          <span class="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">{{
+            message.text
           }}</span>
         </div>
         <div v-else class="flex flex-col space-y-1">
@@ -126,12 +124,13 @@ onMounted(() => {
     </div>
 
     <!-- Message Input -->
-    <div class="p-4 border-t border-gray-800">
-      <form @submit.prevent="sendMessage" class="flex items-center space-x-2">
-        <input v-model="newMessage" @keyup.enter="sendMessage" type="text" placeholder="Type a message..."
-          class="flex-1 bg-gray-800 text-white rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-700" />
+    <div class="p-4 border-t border-border/50">
+      <form class="flex items-center space-x-2" @submit.prevent="sendMessage">
+        <input v-model="newMessage" type="text" placeholder="Type a message..."
+          class="flex-1 bg-gray-800 text-white rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-700"
+          @keyup.enter="sendMessage" />
         <button type="submit"
-          class="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+          class="bg-blue-600 hover:bg-blue-700 text-foreground rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
           <SendIcon :size="16" />
         </button>
       </form>
@@ -146,25 +145,15 @@ onMounted(() => {
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: #1f2937;
-  /* gray-800 */
+  background: var(--card);
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: #4b5563;
-  /* gray-600 */
+  background-color: var(--muted);
   border-radius: 3px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: #6b7280;
-  /* gray-500 */
-}
-
-/* Firefox */
-.scrollbar-thin {
-  scrollbar-width: thin;
-  scrollbar-color: #4b5563 #1f2937;
-  /* thumb and track color */
+  background-color: var(--muted-foreground);
 }
 </style>

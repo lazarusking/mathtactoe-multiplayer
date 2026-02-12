@@ -1,6 +1,149 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+:root {
+  /* Dark Mode Tokens (Default) */
+  --background:hsl( 223.64 50% 8.63%);
+    /* #0f172a */
+    --foreground:hsl( 210 40% 98%);
+  /* #0B1121 */
+
+  --card:hsl( 217.2 32.6% 17.5%);
+  /* #1e293b */
+  --card-foreground:hsl( 210 40% 98%);
+
+  --popover:hsl( 217.2 32.6% 17.5%);
+  --popover-foreground:hsl( 210 40% 98%);
+
+  /* --primary:hsl( 142.1 76.2% 36.3%); */
+  /* #16a34a (green-600) or user's #2bee79 */
+  /*hsl( Using user's primary #2bee79 approx HSL: 144 85% 55%) */
+  --primary:hsl( 144 85.15% 55.1%);
+  --primary-foreground:hsl( 222.2 47.4% 11.2%);
+
+  --secondary:hsl( 82.71 77.97% 55.49%);
+  /* #a3e635 */
+  --secondary-foreground:hsl( 222.2 47.4% 11.2%);
+
+  /* --muted:hsl( 217.2 32.6% 17.5%); */
+  --muted:theme(--color-slate-700);
+  /* slate-800 */
+  --muted-foreground:hsl( 215 20.2% 65.1%);
+  /* slate-400 */
+
+  --accent:hsl( 349.72 89.16% 60.2%);
+  /* #f43f5e */
+  --accent-foreground:hsl( 210 40% 98%);
+
+  --destructive:hsl( 0 62.8% 30.6%);
+  --destructive-foreground:hsl( 210 40% 98%);
+
+  --border:theme(--color-slate-700);
+  --input:hsl( 217.2 32.6% 17.5%);
+  --ring:hsl( 144 85% 55%);
+
+  --radius: 1rem;
+}
+
+@theme {
+  /* --color-primary: #2bee79;
+  --color-secondary: #a3e635;
+  --color-accent: #f43f5e;
+  --color-background-light: #f6f8f7;
+  --color-background-dark: #0b1121;
+  --color-surface-light: #ffffff;
+  --color-surface-dark: #1e293b;
+  --color-cell-light: #f1f5f9;
+  --color-cell-dark: #334155; */
+
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+
+  /* --color-input: var(--input); */
+  /* --color-ring: var(--ring); */
+  --color-border: var(--border);
+
+
+  /* --color-surface-light: var(--card);
+
+  --color-surface-dark: var(--foreground);
+  --color-cell-light: var(--muted);
+  --color-cell-dark: var(--muted-foreground); */
+
+  --font-display: Space Grotesk, sans-serif;
+  --font-body: Plus Jakarta Sans, sans-serif;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  button:not([disabled]),
+  [role="button"]:not([disabled]) {
+    cursor: pointer;
+  }
+
+  body {
+  min-height: 100vh;
+  height: 100vh;
+  color: var(--color-text);
+  background: var(--color-background);
+  transition:
+    color 0.5s,
+    background-color 0.5s;
+  line-height: 1.6;
+  font-family:
+    'Plus Jakarta Sans',
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    'Fira Sans',
+    'Droid Sans',
+    'Helvetica Neue',
+    sans-serif;
+  font-size: 15px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+}
 
 /* color palette from <https://github.com/vuejs/theme> */
 :root {
@@ -26,54 +169,27 @@
 }
 
 /* semantic color variables for this project */
-:root {
-  --color-background: theme(colors.slate.900);
+/* :root { */
+  /* --color-background: var(--color-slate-900); */
   /* --color-background: var(--vt-c-black); */
-  --color-background-soft: var(--vt-c-black-soft);
+  /* --color-background-soft: var(--vt-c-black-soft);
   --color-background-mute: var(--vt-c-black-mute);
 
   --color-border: var(--vt-c-divider-dark-2);
   --color-border-hover: var(--vt-c-divider-dark-1);
 
   --color-heading: var(--vt-c-text-dark-1);
-  --color-text: var(--vt-c-text-dark-1);
-}
+  --color-text: var(--vt-c-text-dark-1); */
+/* } */
 
-*,
+/* *,
 *::before,
 *::after {
   box-sizing: border-box;
   margin: 0;
   font-weight: normal;
-}
+} */
 
-body {
-  min-height: 100vh;
-  height: 100vh;
-  color: var(--color-text);
-  transition:
-    color 0.5s,
-    background-color 0.5s;
-  line-height: 1.6;
-  font-family:
-    'Plus Jakarta Sans',
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
-  font-size: 15px;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
 
 /* body {
   font-family: 'Plus Jakarta Sans', sans-serif;
@@ -82,6 +198,18 @@ body {
 /* .font-display {
   font-family: 'Plus Jakarta Sans', sans-serif;
 } */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 10px;
+}
 
 .h-dynamic-screen {
   min-height: 100vh;

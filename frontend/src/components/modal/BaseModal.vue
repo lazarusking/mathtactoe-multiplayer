@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
-defineProps<{ showHelp: boolean }>()
+defineProps<{ showHelp: boolean, baseClass?: string }>()
 defineSlots<{ title: string, content: HTMLElement }>()
 const emit = defineEmits<{ (event: 'close-modal'): void }>()
 
@@ -38,16 +38,18 @@ onUnmounted(() => {
     <Teleport to="body">
         <!-- <div  class="fixed inset-0 flex items-center justify-center z-50 bg-opacity-50"> -->
         <div v-if="showHelp" @click="handleOutsideClick" ref="dialog"
-            class="fixed p-4 inset-0 flex items-center justify-center z-50 overflow-y-auto animate-opacity transition ease-in-out duration-500 bg-gray-500 bg-opacity-75 focus:bg-slate-900">
-            <div class="w-auto max-w-md px-4 py-8 mx-auto bg-gray-800 rounded-lg sm:w-80 md:w-full sm:px-6 lg:px-8">
-                <header className="flex font-bold text-center text-lg">
-                    <h2 className="flex-1">
+            class="fixed p-4 inset-0 flex items-center justify-center z-50 overflow-y-auto animate-opacity transition ease-in-out duration-500 bg-background/80 backdrop-blur-sm">
+            <div
+                :class="['w-auto px-4 py-8 mx-auto bg-card border border-border rounded-4xl sm:px-6 lg:px-8 shadow-2xl', baseClass]">
+                <header class="flex font-bold text-center text-lg text-foreground mb-6">
+                    <h2 class="flex-1">
                         <slot name="title">
                             <!-- Insert title here -->
                         </slot>
                     </h2>
-                    <div className="ml-auto">
-                        <button @click="emit('close-modal')" aria-label="Close Button">
+                    <div class="ml-auto">
+                        <button @click="emit('close-modal')" aria-label="Close Button"
+                            class="text-muted-foreground hover:text-foreground">
                             <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.5"
                                 viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round"

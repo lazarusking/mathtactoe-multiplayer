@@ -4,21 +4,16 @@ import { websocket } from '@/lib/socket'
 import router from '@/router'
 import { useWebSocket } from '@vueuse/core'
 import { Info, Rocket } from 'lucide-vue-next'
-import { defineAsyncComponent, onMounted, ref, watch } from 'vue'
+import { defineAsyncComponent, ref, watch } from 'vue'
 
 const HelpModal = defineAsyncComponent(() => import('./modal/HelpModal.vue'))
 
 const roomId = ref('')
-const playerName = ref('')
+const playerName = ref(localStorage.getItem('username') || '')
 const showHelp = ref(false)
 const activeTab = ref<'join' | 'create'>('create')
 
-onMounted(() => {
-  const storedUsername = localStorage.getItem('username')
-  if (storedUsername) {
-    playerName.value = storedUsername
-  }
-})
+
 const { send } = useWebSocket(websocket.url, {
   onMessage(ws, event) {
     handleMessage(event)
@@ -79,7 +74,7 @@ function closeModal() {
 function joinGame() {
   if (roomId.value) {
     // const data = { action: 'join-room', message: null, sender: { name: playerName.value } }
-    router.push({ name: 'room', params: { username: playerName.value, room: roomId.value } })
+    router.push({ name: 'room', params: { room: roomId.value } })
   }
 }
 

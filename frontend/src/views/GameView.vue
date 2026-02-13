@@ -375,7 +375,7 @@ watch(
               class="w-10 h-10 rounded-xl bg-linear-to-br from-secondary to-green-600 flex items-center justify-center shadow-lg">
               <Calculator class="w-5 h-5 text-white" />
             </div>
-            <h1 class="text-2xl font-bold text-slate-800 dark:text-white tracking-wide">
+            <h1 class="text-2xl font-bold text-foreground tracking-wide">
               TicTac<span class="text-secondary">Math</span>
             </h1>
           </div>
@@ -448,7 +448,7 @@ watch(
             <!-- Center: Turn indicator -->
             <div class="flex flex-col items-center flex-1">
               <span class="text-xs font-bold text-muted-foreground mb-2 uppercase tracking-tighter">{{ currentTurnLabel
-                }}</span>
+              }}</span>
               <div :class="[
                 'px-6 py-2 rounded-full text-xs font-bold shadow-inner truncate max-w-45',
                 playerNameLabel === 'Your Turn' ? 'bg-primary/20' : 'bg-accent/10'

@@ -588,7 +588,7 @@ watch(
       @toggle="toggleChat" />
 
     <!-- mobile size -->
-    <Chat v-if="showChat" class="h-dynamic-screen inset-0 md:hidden block absolute bg-background/90 z-50"
+    <Chat v-if="showChat" class="h-dynamic-screen inset-0 md:hidden block fixed bg-background/90 z-50"
       :playerID="WSState.clientID" :messages="chatMessages" :users="WSState.totalCount" @send-message="sendChatMessage"
       @toggle="toggleChat" />
 
